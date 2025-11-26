@@ -1,0 +1,4 @@
+# 忽略联邦学习实验结果目录
+experiment_results/
+# 忽略其他结果目录
+results/
