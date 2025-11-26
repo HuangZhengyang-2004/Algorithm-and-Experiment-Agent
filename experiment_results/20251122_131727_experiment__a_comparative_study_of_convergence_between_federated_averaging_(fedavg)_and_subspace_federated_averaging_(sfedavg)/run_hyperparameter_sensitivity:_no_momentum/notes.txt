@@ -1,0 +1,42 @@
+# Title: Experiment: A Comparative Study of Convergence between Federated Averaging (FedAvg) and Subspace Federated Averaging (SFedAvg)
+# Experiment description: Compare the convergence behavior of Federated Averaging (FedAvg) and Subspace Federated Averaging (SFedAvg) on a standard dataset (e.g., MNIST or CIFAR-10) under identical settings. Measure metrics such as training loss, test accuracy, and communication efficiency over multiple rounds of training.
+# Timestamp: 20251122_131727
+
+## Experiment Log
+LOGIC_VALIDATION_PASSED
+
+Non-IID partition via Dirichlet α=0.1 over labels (strong class dominance per client; empty-client handling enabled).
+Label noise: none (0%).
+Special processing/mods: standardized features (StandardScaler); Dirichlet allocation with rounding; skip empty clients in training/aggregation/communication accounting.
+Key differences: heterogeneity_alpha flag activates non-IID split; SFedAvg applies per-round projector Π_t with one-sided projected momentum to damp inter-client gradient variance.
+
+## Tuning Analysis: non-iid_label_skew_(dirichlet α=0.1)
+1) Best Configuration: stepsize=0.30, momentum=0.95, subspace_rank_fraction=0.35 (config_7). It yields the lowest SFedAvg train loss and matches the highest SFedAvg test accuracy peak observed among configs.
+2) Performance Improvement: SFedAvg final train loss improved by ≈20.1% vs baseline (0.2658 → 0.2125); early-round loss (round 10) improved by ≈23.9% (0.7433 → 0.5653). Peak SFedAvg test accuracy increased by ≈0.3% relative (0.9361 → 0.9389), while FedAvg peak accuracy improved by ≈0.9% relative (0.95 → 0.9583) under some configs.
+3) Parameter Insights: Momentum had the strongest impact; higher μ=0.95 consistently accelerated SFedAvg convergence under label skew. Subspace rank was second-most influential: larger rank (0.30–0.35) improved loss/accuracy but increased communication; lower rank (0.15–0.20) reduced comms with notable accuracy degradation. Stepsize adjustments within 0.20–0.35 mainly traded stability vs speed with smaller effects than momentum/rank.
+4) Recommendation: For accuracy/convergence priority, use stepsize=0.30, momentum=0.95, subspace_rank_fraction=0.35. If communication budget is critical, consider stepsize=0.30, momentum=0.90, subspace_rank_fraction=0.15 to reduce SFedAvg comms (~19% lower than baseline) at the cost of accuracy; a balanced alternative is stepsize=0.35, momentum=0.80, subspace_rank_fraction=0.30 for solid accuracy with moderate comm overhead.
+
+## Scenario Summary: robustness_to_label_noise_(20%_flips)
+- Partition: IID random split across clients (no Dirichlet skew).
+- Label noise: Uniform 20% per client via random flips to different classes; corruption fixed per client across rounds.
+- Processing/mods: Standardized features (StandardScaler); per-client noisy labels applied to y_train_effective; SFedAvg uses per-round one-sided projector Π_t with momentum projection at block start.
+- Key differences: Introduction of --label_noise_fraction=0.2 and per-client label corruption; SFedAvg’s projection dampens high-variance noisy gradients vs FedAvg.
+
+## Tuning Analysis: robustness_to_label_noise_(20%_flips)
+1) Best Configuration: Config_2 (stepsize=0.30, momentum=0.90, subspace_rank_fraction=0.25) delivered the highest SFedAvg peak and final test accuracy (up to 0.9583), with stable convergence and balanced communication. Config_7 (stepsize=0.30, momentum=0.95, rank=0.35) achieved the lowest SFedAvg final train loss (~6.2% lower than baseline: 0.4466 → 0.4191) but with a small accuracy drop and higher comm cost.
+2) Performance Improvement: Versus baseline parameters, the best-accuracy configuration is identical (0% accuracy gain). Relative to FedAvg under 20% label flips, SFedAvg improves final test accuracy by ≈9.2 percentage points (~10% relative) and maintains consistently lower train loss across rounds.
+3) Parameter Insights: Higher momentum (0.95) and larger rank (0.35) speed loss reduction but slightly reduce test accuracy and increase communication (~+16.7% vs baseline rank 0.25). Tighter subspace (rank 0.15–0.20) cuts communication by ~17–19% but degrades accuracy; stepsize mainly trades speed vs stability, with 0.30 outperforming 0.20/0.35 on accuracy.
+4) Recommendation: Use stepsize=0.30, momentum=0.90, subspace_rank_fraction=0.25 for best accuracy and robustness under label noise. If minimizing train loss is prioritized, consider momentum=0.95 and rank=0.35 (expect ~6% lower final loss, slight accuracy drop, +17% comm); for comm savings, consider rank=0.15 (~19% lower comm) with expected accuracy trade-off.
+
+## Scenario Summary: scalability:_large_n_and_high-d_features
+- Partition: IID random split across 200 clients (no Dirichlet skew).
+- Label noise: none (0%).
+- Processing/mods: Standardized features; expanded to 1024-D via random Gaussian projection; SFedAvg uses per-round one-sided projector Π_t with momentum projection; communication accounting includes Π_t (d×r) and effective dims r×k.
+- Key differences: Large N (200) and high feature dimension (d=1024) stress communication; SFedAvg at rank fraction 0.1 maintains similar accuracy with markedly lower cumulative comm vs FedAvg.
+
+## Tuning Analysis: scalability:_large_n_and_high-d_features
+1) Best Configuration: config_7 with subspace_rank_fraction=0.08, stepsize=0.35, momentum=0.9 achieved the best trade-off, reaching test_acc_sfedavg=0.9472 while reducing SFedAvg communication by ~17.2% vs baseline; final train_loss_sfedavg dropped to 0.2327. Config_6 attained the absolute highest accuracy (0.9500) but increased communication by ~42%. Config_4 matched baseline comm with improved accuracy (0.9444), but config_7 beat it with lower comm.
+2) Performance Improvement: Relative to baseline SFedAvg (final acc=0.9333, loss=0.2710, comm=149.9M), config_7 improves final test accuracy by ~1.6% (relative), lowers final train loss by ~14.1%, and cuts cumulative communication by ~17.2%. Config_2 maintains baseline accuracy while cutting comm by ~41.8%. Config_3 reduces loss by ~10.4% with slightly higher comm due to larger rank.
+3) Parameter Insights: Subspace rank fraction r/d is the dominant factor for communication and capacity—lower ranks (0.05–0.08) substantially cut comm with modest accuracy trade-offs, while higher ranks (0.12–0.15) improve loss/accuracy at the cost of comm. Stepsize interacts with momentum under high-d: a faster LR (0.35) with baseline momentum (0.9) improved accuracy notably at moderate rank (0.08). Higher momentum (0.95) smoothed convergence and reduced loss but did not consistently yield the best accuracy unless paired with larger ranks.
+4) Recommendation: Use subspace_rank_fraction=0.08, stepsize=0.35, momentum=0.9 for the best accuracy–communication trade-off. If communication budget is critical, use subspace_rank_fraction=0.05, stepsize=0.30, momentum=0.9 to cut comm by ~42% while matching baseline accuracy. For accuracy-first experiments and relaxed comm constraints, consider subspace_rank_fraction=0.15, stepsize=0.20, momentum=0.9 (highest accuracy observed).
+

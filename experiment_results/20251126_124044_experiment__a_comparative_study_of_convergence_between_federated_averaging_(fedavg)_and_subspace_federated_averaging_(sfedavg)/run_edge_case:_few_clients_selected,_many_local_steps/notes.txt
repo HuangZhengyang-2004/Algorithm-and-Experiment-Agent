@@ -1,0 +1,30 @@
+# Title: Experiment: A Comparative Study of Convergence between Federated Averaging (FedAvg) and Subspace Federated Averaging (SFedAvg)
+# Experiment description: Compare the convergence behavior of Federated Averaging (FedAvg) and Subspace Federated Averaging (SFedAvg) on a standard dataset (e.g., MNIST or CIFAR-10) under identical settings. Measure metrics such as training loss, test accuracy, and communication efficiency over multiple rounds of training.
+# Timestamp: 20251126_124044
+
+## Experiment Log
+
+Scenario: non-iid_label_skew_(heterogeneity)
+- Partition: IID random client splits (non-IID label skew not implemented).
+- Label noise: 10% global symmetric flips applied in data generation.
+- Special processing/algorithm: No scenario-specific changes; standard feature normalization; no per-client feature shift injection.
+- Key differences: None; SFedAvg uses one-sided projected momentum (Pi = P P^T) and communication accounting identical to other scenarios.
+
+Scenario: robustness_to_noise_and_outliers
+- Partition: IID random splits; heterogeneous corruption applied per client.
+- Label noise: per-client random flips with rate ~30% (uniform in [0.2, 0.4]).
+- Special processing/algorithm: Inject ~5% heavy-tailed (Cauchy) feature outliers per client; SFedAvg uses one-sided projected momentum with Pi = P P^T; conditional communication accounting.
+- Key differences: Per-client unequal noise and outliers; added robust metrics (accuracy at rounds, rounds_to_70_acc, max_loss_spike) to assess resilience.
+
+Scenario: scalability:_high-dimensional,_large-scale
+- Partition: IID equal-sized random partitions across 200 clients.
+- Label noise: None; labels balanced by ranking logits to achieve ~50/50 classes.
+- Special processing/algorithm: Feature standardization and bias term; SFedAvg communicates round-wise projector Pi_t (d x d); added metrics: comm_per_0.8_acc and rounds_to_target_loss.
+- Key differences: Large dataset (200k samples) and high dimension (d=200); emphasizes convergence–communication trade-off (FedAvg lower communication; SFedAvg potentially faster per-round convergence but higher communication).
+
+Scenario: hyperparameter_sensitivity:_momentum_and_subspace
+- Partition: IID equal-sized random splits; balanced synthetic logistic labels (~50/50).
+- Label noise: None.
+- Special processing/algorithm: Feature standardization and bias term; SFedAvg uses one-sided projected momentum with round-wise P_t P_t^T; tuning sweeps μ and r.
+- Key differences: Repeated runs sweeping μ ∈ {0.0, 0.5, 0.9} and r ∈ {8, 16, 32}; added stability_index and area_under_accuracy_curve to map speed–stability trade-offs.
+

@@ -1,0 +1,55 @@
+{
+  "selected_parameters": ["subspace_ratio", "lr", "client_frac"],
+  "selection_rationale": "Subspace ratio (r/d) directly controls the projection dimension in SFedAvg, affecting convergence speed and projection benefits; learning rate (lr) modulates stability and progress under different r/d regimes; client_frac determines the number of participating clients per round, influencing aggregation variance and drift.",
+  "configs": [
+    {
+      "subspace_ratio": 0.05,
+      "lr": 0.12,
+      "client_frac": 0.20,
+      "rationale": "Small r/d to assess slower learning due to strong projection; baseline lr and participation."
+    },
+    {
+      "subspace_ratio": 0.10,
+      "lr": 0.12,
+      "client_frac": 0.20,
+      "rationale": "Mid r/d expected sweet spot balancing convergence speed and projection benefit."
+    },
+    {
+      "subspace_ratio": 0.25,
+      "lr": 0.12,
+      "client_frac": 0.20,
+      "rationale": "Large r/d approaching momentum SGD; tests diminished projection benefits."
+    },
+    {
+      "subspace_ratio": 0.10,
+      "lr": 0.10,
+      "client_frac": 0.20,
+      "rationale": "Sweet-spot r/d with conservative lr to probe stability improvements."
+    },
+    {
+      "subspace_ratio": 0.10,
+      "lr": 0.15,
+      "client_frac": 0.20,
+      "rationale": "Sweet-spot r/d with higher lr to test faster progress vs potential instability."
+    },
+    {
+      "subspace_ratio": 0.10,
+      "lr": 0.12,
+      "client_frac": 0.30,
+      "rationale": "Sweet-spot r/d with higher participation to reduce aggregation variance and accelerate convergence."
+    },
+    {
+      "subspace_ratio": 0.05,
+      "lr": 0.12,
+      "client_frac": 0.30,
+      "rationale": "Small r/d with more clients per round to compensate for slower learning via reduced variance."
+    },
+    {
+      "subspace_ratio": 0.25,
+      "lr": 0.12,
+      "client_frac": 0.10,
+      "rationale": "Large r/d with fewer clients to explore drift and communication trade-offs under reduced participation."
+    }
+  ],
+  "expected_improvement": "We expect a clear sensitivity curve where r/d≈0.10 with lr≈0.12 and client_frac≈0.20 yields the best convergence and generalization; smaller r/d (0.05) will learn slower unless participation increases, while larger r/d (0.25) will reduce projection benefits and behave closer to momentum SGD."
+}

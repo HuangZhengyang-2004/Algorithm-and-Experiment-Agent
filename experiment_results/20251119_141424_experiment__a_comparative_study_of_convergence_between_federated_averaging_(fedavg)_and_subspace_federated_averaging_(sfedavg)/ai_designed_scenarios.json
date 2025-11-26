@@ -1,0 +1,115 @@
+{
+  "scenarios": [
+    {
+      "name": "Non-IID Label Skew (Dirichlet) – Convergence Stability",
+      "description": "Evaluate convergence when client data are highly heterogeneous with label-skew partitions, testing whether one-sided subspace projection with momentum improves stability over FedAvg.",
+      "parameters": {
+        "--rounds": 50,
+        "--local_steps": 5,
+        "--client_fraction": 0.5,
+        "--lr": 0.15,
+        "--momentum": 0.9,
+        "--batch_size": 32,
+        "--num_clients": 50,
+        "--seed": 1
+      },
+      "dataset": "Synthetic multiclass data split per client using Dirichlet(alpha=0.2) over labels to induce label skew; each client sees a few dominant classes.",
+      "expected_insight": "SFedAvg should reduce oscillations and achieve faster, more stable convergence under heterogeneity compared to FedAvg.",
+      "metrics": [
+        "train_loss",
+        "test_accuracy",
+        "comm_efficiency",
+        "loss_curve_smoothness"
+      ]
+    },
+    {
+      "name": "Robustness to Label Noise – Noisy Clients",
+      "description": "Test robustness when a subset of clients have corrupted labels, assessing whether projected momentum mitigates the impact of noisy gradients.",
+      "parameters": {
+        "--rounds": 50,
+        "--local_steps": 5,
+        "--client_fraction": 0.5,
+        "--lr": 0.1,
+        "--momentum": 0.9,
+        "--batch_size": 64,
+        "--num_clients": 40,
+        "--seed": 2
+      },
+      "dataset": "Introduce 20% random label flips on 30% of clients while others remain clean; feature distribution remains similar across clients.",
+      "expected_insight": "SFedAvg should exhibit smaller accuracy degradation and steadier loss trends versus FedAvg due to subspace filtering of noisy gradients.",
+      "metrics": [
+        "train_loss",
+        "test_accuracy",
+        "comm_efficiency",
+        "accuracy_gap_clean_vs_noisy"
+      ]
+    },
+    {
+      "name": "Scalability – Many Clients, Sparse Participation",
+      "description": "Assess scalability and communication efficiency with a large number of clients and small client fraction per round.",
+      "parameters": {
+        "--rounds": 60,
+        "--local_steps": 3,
+        "--client_fraction": 0.1,
+        "--lr": 0.12,
+        "--momentum": 0.9,
+        "--batch_size": 32,
+        "--num_clients": 200,
+        "--seed": 3
+      },
+      "dataset": "Increase total synthetic dataset size and distribute evenly across 200 clients; clients participate sparsely each round.",
+      "expected_insight": "SFedAvg should reach comparable or better accuracy per unit of communication than FedAvg, highlighting subspace efficiency benefits.",
+      "metrics": [
+        "train_loss",
+        "test_accuracy",
+        "comm_efficiency",
+        "accuracy_per_comm"
+      ]
+    },
+    {
+      "name": "Hyperparameter Sensitivity – Learning Rate and Momentum",
+      "description": "Probe sensitivity to optimizer settings by varying learning rate and momentum, isolating optimizer behavior on near-IID data.",
+      "parameters": {
+        "--rounds": 40,
+        "--local_steps": 5,
+        "--client_fraction": 0.5,
+        "--lr": 0.05,
+        "--momentum": 0.0,
+        "--batch_size": 32,
+        "--num_clients": 30,
+        "--seed": 4
+      },
+      "dataset": "Near-IID splits (Dirichlet alpha=10) to reduce heterogeneity; repeat runs with higher lr (e.g., 0.2) and momentum (e.g., 0.9) for sensitivity curves.",
+      "expected_insight": "SFedAvg with momentum projection should tolerate higher learning rates and exhibit reduced loss variance compared to FedAvg.",
+      "metrics": [
+        "train_loss",
+        "test_accuracy",
+        "comm_efficiency",
+        "loss_variance"
+      ]
+    },
+    {
+      "name": "Edge Case – Deep Local Training with Tiny Participation",
+      "description": "Stress test with very high local steps and tiny client fraction to expose potential drift and aggregation instability.",
+      "parameters": {
+        "--rounds": 30,
+        "--local_steps": 25,
+        "--client_fraction": 0.05,
+        "--lr": 0.08,
+        "--momentum": 0.95,
+        "--batch_size": 64,
+        "--num_clients": 100,
+        "--seed": 5
+      },
+      "dataset": "Strong heterogeneity via covariate shift: per-client feature means shifted randomly; maintain balanced labels.",
+      "expected_insight": "FedAvg may suffer from client drift and unstable aggregation; SFedAvg’s projected momentum should reduce drift and improve convergence robustness.",
+      "metrics": [
+        "train_loss",
+        "test_accuracy",
+        "comm_efficiency",
+        "drift_indicator"
+      ]
+    }
+  ],
+  "rationale": "These scenarios directly target the algorithm’s defining elements—client subset sampling, one-sided random subspace projection, and momentum projection. They collectively examine heterogeneity (label skew, covariate shift), robustness to noisy gradients, scalability with many clients and sparse participation, sensitivity to optimizer hyperparameters, and edge conditions that can trigger drift—providing a thorough comparison of FedAvg vs SFedAvg behavior per the title and pseudocode."
+}

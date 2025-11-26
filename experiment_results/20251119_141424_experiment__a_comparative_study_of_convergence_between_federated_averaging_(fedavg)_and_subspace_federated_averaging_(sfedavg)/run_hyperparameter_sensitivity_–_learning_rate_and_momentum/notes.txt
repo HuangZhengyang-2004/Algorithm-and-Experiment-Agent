@@ -1,0 +1,22 @@
+# Title: Experiment: A Comparative Study of Convergence between Federated Averaging (FedAvg) and Subspace Federated Averaging (SFedAvg)
+# Experiment description: Compare the convergence behavior of Federated Averaging (FedAvg) and Subspace Federated Averaging (SFedAvg) on a standard dataset (e.g., MNIST or CIFAR-10) under identical settings. Measure metrics such as training loss, test accuracy, and communication efficiency over multiple rounds of training.
+# Timestamp: 20251119_141424
+
+## Experiment Log
+
+Scenario: non-iid_label_skew_(dirichlet)_–_convergence_stability
+Partition: Non-IID label-skew via Dirichlet alpha=0.2 across clients (each client has a few dominant labels).
+Label noise: None (0%).
+Special: Per-round one-sided random subspace Pi_t held fixed; momentum projection at block start (v0_i = Pi_t * v_prev); standardization using train statistics.
+Key differences: SFedAvg uses r/d≈0.2 projected updates vs FedAvg identity projector; includes cumulative normalized communication tracking for stability comparison.
+Scenario: robustness_to_label_noise_–_noisy_clients
+Partition: IID random partition; 30% of clients designated noisy while features remain similar across clients.
+Label noise: 20% random label flips applied to labels on noisy clients; clean clients remain unaltered.
+Special: add_label_noise() applied post-partition to selected clients; algorithms selectable via --algorithm with one-sided subspace projection and momentum projection at block start.
+Key differences: Emphasizes robustness to corrupted labels; tracks steadier loss and smaller accuracy degradation for SFedAvg versus FedAvg.
+Scenario: scalability_–_many_clients,_sparse_participation
+Partition: IID uniform partition across 200 clients; sparse participation per round (client_fraction=0.1).
+Label noise: None (0%).
+Special: Increased synthetic dataset size via --n_samples=max(4000, num_clients*200); derived metric acc_per_comm_*; sparse client sampling m≈C·N per round.
+Key differences: Focus on communication efficiency and accuracy-per-communication; SFedAvg uses projected updates (r/d≈0.2) to improve efficiency under many clients.
+```

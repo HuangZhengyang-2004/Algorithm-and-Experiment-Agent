@@ -1,0 +1,65 @@
+{
+  "algorithm_name": "SFedAvg",
+  "has_design_parameters": true,
+  "design_parameters": [
+    {
+      "name": "subspace_rank",
+      "code_param": "--subspace_rank",
+      "description": "Rank r of the one-sided random subspace used to form the projector Π_t = P_t P_t^T",
+      "type": "int",
+      "typical_range": [1, 4, 8, 16, 32],
+      "impact": "Balances drift mitigation and communication cost (∝ d·r). Lower r increases regularization and reduces communication, but can limit expressiveness and slow convergence.",
+      "priority": "high"
+    },
+    {
+      "name": "momentum",
+      "code_param": "--momentum",
+      "description": "Momentum coefficient μ used in projected momentum updates on clients",
+      "type": "float",
+      "typical_range": [0.0, 0.5, 0.7, 0.9, 0.95],
+      "impact": "Controls stability and convergence speed. Higher μ strengthens temporal smoothing; with projection it mitigates client drift under heterogeneity.",
+      "priority": "high"
+    },
+    {
+      "name": "projection_type",
+      "code_param": "--projection_type",
+      "description": "Whether projection is one-sided (project gradients/momentum) or two-sided (project both parameters and gradients)",
+      "type": "enum",
+      "typical_range": ["one-sided", "two-sided"],
+      "impact": "One-sided preserves more local freedom while reducing drift; two-sided further constrains updates and may slow convergence but can enhance stability.",
+      "priority": "medium"
+    },
+    {
+      "name": "projector_refresh_frequency",
+      "code_param": "--projector_refresh",
+      "description": "How often the random subspace P_t is resampled",
+      "type": "enum",
+      "typical_range": ["per_round", "every_k_rounds", "fixed"],
+      "impact": "Per-round refresh adds stochasticity that can improve exploration; less frequent refresh reduces randomness and communication overhead.",
+      "priority": "medium"
+    },
+    {
+      "name": "momentum_projection_initialization",
+      "code_param": "--mp_init_project",
+      "description": "Whether to project the previous momentum state v_prev at block start (v^0 ← Π_t v_prev)",
+      "type": "boolean",
+      "typical_range": [true, false],
+      "impact": "Projecting v_prev aligns momentum with the current subspace, reducing drift carry-over across rounds; disabling may cause misaligned momentum.",
+      "priority": "medium"
+    },
+    {
+      "name": "projection_scope",
+      "code_param": "--projection_scope",
+      "description": "Which parameter blocks are projected (e.g., weights only vs weights and bias)",
+      "type": "enum",
+      "typical_range": ["weights_only", "all_params"],
+      "impact": "Limiting projection to weight matrices reduces constraint strength and computation; projecting all parameters increases regularization and may alter convergence.",
+      "priority": "medium"
+    }
+  ],
+  "recommended_analysis": {
+    "1d_sensitivity": ["subspace_rank", "momentum"],
+    "2d_sensitivity": ["subspace_rank", "momentum"],
+    "rationale": "Subspace rank and momentum are the core mechanisms of SFedAvg; their interaction governs the trade-off between drift mitigation, convergence speed, and communication."
+  }
+}

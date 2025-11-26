@@ -1,0 +1,49 @@
+{
+  "selected_parameters": ["client_frac", "subspace_frac", "mu"],
+  "selection_rationale": "With many clients and sparse participation, client_frac directly controls the number of contributors per round and the communication budget; subspace_frac (r/D) dictates SFedAvg’s expressivity vs. communication and can accelerate convergence with fewer transmitted parameters; momentum (mu) smooths aggregation across rounds when per-round signal is weak and noisy due to low participation.",
+  "configs": [
+    {
+      "client_frac": 0.05,
+      "subspace_frac": 0.10,
+      "mu": 0.90,
+      "rationale": "Halve participation to reduce communication; keep baseline subspace and momentum to test accuracy-per-comm trade-off."
+    },
+    {
+      "client_frac": 0.05,
+      "subspace_frac": 0.05,
+      "mu": 0.95,
+      "rationale": "Aggressive communication reduction via smaller subspace; higher momentum to stabilize updates with fewer directions and clients."
+    },
+    {
+      "client_frac": 0.10,
+      "subspace_frac": 0.05,
+      "mu": 0.95,
+      "rationale": "Baseline participation with reduced subspace and stronger momentum to improve efficiency while preserving accuracy."
+    },
+    {
+      "client_frac": 0.10,
+      "subspace_frac": 0.20,
+      "mu": 0.90,
+      "rationale": "Increase expressivity to accelerate convergence at low participation; test if larger subspace improves early accuracy."
+    },
+    {
+      "client_frac": 0.20,
+      "subspace_frac": 0.10,
+      "mu": 0.90,
+      "rationale": "More clients per round to reduce variance; baseline subspace to gauge convergence speed vs. communication increase."
+    },
+    {
+      "client_frac": 0.20,
+      "subspace_frac": 0.05,
+      "mu": 0.95,
+      "rationale": "Higher participation with leaner subspace and stronger momentum for improved accuracy-per-communication."
+    },
+    {
+      "client_frac": 0.10,
+      "subspace_frac": 0.10,
+      "mu": 0.85,
+      "rationale": "Lower momentum to test reduced accumulation under sparse participation, checking stability vs. speed."
+    }
+  ],
+  "expected_improvement": "We expect moderate to higher momentum (mu≈0.95) and smaller subspace (r/D≈0.05–0.10) to improve accuracy-per-communication under low participation; increasing client_frac to 0.20 should stabilize and slightly boost accuracy at the cost of more communication, while larger subspace (≈0.20) may speed early rounds but with higher bandwidth."
+}

@@ -1,0 +1,12 @@
+# Title: Experiment: A Comparative Study of Convergence between Federated Averaging (FedAvg) and Subspace Federated Averaging (SFedAvg)
+# Experiment description: Compare the convergence behavior of Federated Averaging (FedAvg) and Subspace Federated Averaging (SFedAvg) on a standard dataset (e.g., MNIST or CIFAR-10) under identical settings. Measure metrics such as training loss, test accuracy, and communication efficiency over multiple rounds of training.
+# Timestamp: 20251119_141424
+
+## Experiment Log
+
+Scenario: non-iid_label_skew_(dirichlet)_–_convergence_stability
+Partition: Non-IID label-skew via Dirichlet alpha=0.2 across clients (each client has a few dominant labels).
+Label noise: None (0%).
+Special: Per-round one-sided random subspace Pi_t held fixed; momentum projection at block start (v0_i = Pi_t * v_prev); standardization using train statistics.
+Key differences: SFedAvg uses r/d≈0.2 projected updates vs FedAvg identity projector; includes cumulative normalized communication tracking for stability comparison.
+```

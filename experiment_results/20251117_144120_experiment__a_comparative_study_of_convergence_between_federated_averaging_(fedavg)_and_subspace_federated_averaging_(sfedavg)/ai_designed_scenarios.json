@@ -1,0 +1,135 @@
+{
+  "scenarios": [
+    {
+      "name": "Non-IID Heterogeneity Comparison",
+      "description": "Evaluate FedAvg vs SFedAvg under pronounced client distribution shift to test convergence stability with one-sided random subspace and momentum projection.",
+      "parameters": {
+        "--algo": "sfedavg",
+        "--rounds": 40,
+        "--clients": 20,
+        "--client_frac": 0.25,
+        "--local_steps": 5,
+        "--lr": 0.1,
+        "--momentum": 0.9,
+        "--batch_size": 32,
+        "--dim": 100,
+        "--subspace_dim": 20,
+        "--samples_per_client": 800,
+        "--test_samples": 3000,
+        "--seed": 123
+      },
+      "dataset": "Synthetic binary classification with strong client feature shifts and mild class imbalance per client to induce non-IID partitions.",
+      "expected_insight": "SFedAvg should exhibit smoother and potentially faster convergence than FedAvg by filtering gradient updates via random subspace projection, with improved stability across heterogeneous clients and reduced variance.",
+      "metrics": [
+        "train_loss",
+        "test_accuracy",
+        "communication_MB"
+      ]
+    },
+    {
+      "name": "Robustness to Label Noise",
+      "description": "Assess sensitivity to corrupted labels, comparing whether SFedAvg’s projected momentum mitigates noise-induced drift better than FedAvg.",
+      "parameters": {
+        "--algo": "sfedavg",
+        "--rounds": 50,
+        "--clients": 15,
+        "--client_frac": 0.33,
+        "--local_steps": 6,
+        "--lr": 0.08,
+        "--momentum": 0.9,
+        "--batch_size": 32,
+        "--dim": 80,
+        "--subspace_dim": 15,
+        "--samples_per_client": 1000,
+        "--test_samples": 4000,
+        "--seed": 7
+      },
+      "dataset": "Start from synthetic data and randomly flip 20% of labels independently per client; keep feature shifts moderate to avoid confounding.",
+      "expected_insight": "Projected updates in SFedAvg should reduce the amplification of noisy gradients, yielding lower final train loss and higher test accuracy than FedAvg under label corruption.",
+      "metrics": [
+        "train_loss",
+        "test_accuracy",
+        "communication_MB"
+      ]
+    },
+    {
+      "name": "Scalability with Many Clients and Higher Dimensional Models",
+      "description": "Measure convergence and communication efficiency as the number of clients and model dimension increase.",
+      "parameters": {
+        "--algo": "sfedavg",
+        "--rounds": 30,
+        "--clients": 100,
+        "--client_frac": 0.1,
+        "--local_steps": 4,
+        "--lr": 0.06,
+        "--momentum": 0.9,
+        "--batch_size": 64,
+        "--dim": 200,
+        "--subspace_dim": 40,
+        "--samples_per_client": 200,
+        "--test_samples": 5000,
+        "--seed": 99
+      },
+      "dataset": "Synthetic data with mild client shifts; more clients with fewer samples each and increased feature dimensionality to stress communication and aggregation.",
+      "expected_insight": "SFedAvg should reduce effective communication per round via subspace projection while maintaining comparable or better convergence than FedAvg, especially in high dimensions.",
+      "metrics": [
+        "train_loss",
+        "test_accuracy",
+        "communication_MB"
+      ]
+    },
+    {
+      "name": "Hyperparameter Sensitivity: Subspace Dimension r and Learning Rate",
+      "description": "Explore how the choice of subspace dimension and stepsize affects convergence speed and stability.",
+      "parameters": {
+        "--algo": "sfedavg",
+        "--rounds": 35,
+        "--clients": 25,
+        "--client_frac": 0.4,
+        "--local_steps": 5,
+        "--lr": 0.05,
+        "--momentum": 0.9,
+        "--batch_size": 32,
+        "--dim": 120,
+        "--subspace_dim": 10,
+        "--samples_per_client": 600,
+        "--test_samples": 3000,
+        "--seed": 314
+      },
+      "dataset": "Synthetic data with moderate client shifts; run repeated trials across subspace_dim ∈ {5, 10, 30, 60} and lr ∈ {0.03, 0.05, 0.1} to produce sensitivity plots.",
+      "expected_insight": "There should be a sweet spot for r and lr: very small r may underfit and slow convergence, very large r approximates FedAvg; moderate r with tuned lr should yield fastest loss decrease and best accuracy.",
+      "metrics": [
+        "train_loss",
+        "test_accuracy",
+        "communication_MB"
+      ]
+    },
+    {
+      "name": "Edge Cases: Minimal Participation and Extreme Momentum",
+      "description": "Stress-test convergence with very low client fraction and extremes of momentum to reveal failure modes.",
+      "parameters": {
+        "--algo": "sfedavg",
+        "--rounds": 60,
+        "--clients": 30,
+        "--client_frac": 0.05,
+        "--local_steps": 3,
+        "--lr": 0.07,
+        "--momentum": 0.0,
+        "--batch_size": 32,
+        "--dim": 150,
+        "--subspace_dim": 5,
+        "--samples_per_client": 500,
+        "--test_samples": 4000,
+        "--seed": 2025
+      },
+      "dataset": "Synthetic data with moderate non-IID shifts; compare momentum μ ∈ {0.0, 0.9} and participation C ∈ {0.05, 0.5} to highlight instability vs stabilization from MP.",
+      "expected_insight": "With tiny client fraction and high heterogeneity, FedAvg may become unstable or very slow; SFedAvg with momentum projection should damp oscillations, and μ=0 may reduce overshoot at the cost of slower convergence.",
+      "metrics": [
+        "train_loss",
+        "test_accuracy",
+        "communication_MB"
+      ]
+    }
+  ],
+  "rationale": "These scenarios directly probe the algorithm’s core elements—random subspace projection, momentum projection, client sampling, and aggregation—by varying heterogeneity, noise levels, scale, subspace dimension, learning rate, client fraction, and momentum. Together they reveal stability and efficiency trade-offs between FedAvg and SFedAvg under conditions emphasized by the pseudocode: per-round subspace sampling, projected momentum, and subset aggregation."
+}

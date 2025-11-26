@@ -1,0 +1,9 @@
+{
+  "parameters": {
+    "subspace_ratio": 0.2,
+    "lr": 0.08,
+    "batch_size": 96
+  },
+  "config_id": "config_8",
+  "scenario": "robustness_to_label_noise"
+}

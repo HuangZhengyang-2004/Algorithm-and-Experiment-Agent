@@ -1,0 +1,15 @@
+1) Best Configuration
+- Config 2 achieved the best final performance for SFedAvg with lr=0.05, mu=0.80, local_steps=10, reaching 94.72% test accuracy (vs. 94.17% baseline).
+
+2) Performance Improvement
+- SFedAvg final test accuracy improved by +0.56 percentage points (+0.59% relative); communication cost is unchanged (same subspace_frac).
+- FedAvg remained near its ceiling (~96.4–96.9%) across configs with negligible differences in final accuracy.
+
+3) Parameter Insights
+- Momentum had the strongest impact under label skew: lowering mu to 0.8 improved SFedAvg generalization despite slightly higher train loss, indicating better stability against client drift.
+- Changing local_steps to 5 generally did not surpass the baseline’s final accuracy; fewer steps reduce drift but also limit per-round progress.
+- Learning rate tweaks (0.03 or 0.075) altered early speed but did not beat the best final accuracy obtained by adjusting momentum.
+
+4) Recommendation
+- For noniid-label-skew, use lr=0.05, mu=0.80, local_steps=10, subspace_frac=0.25, client_frac=0.25, dirichlet_alpha=0.2, rounds=80.
+- If further tuning, search mu in [0.8, 0.9] with local_steps=10 before altering lr, as momentum dominated performance under label skew.

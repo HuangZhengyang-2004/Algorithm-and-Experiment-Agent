@@ -1,0 +1,11 @@
+Best Configuration:
+- Config 7: client_fraction=0.1, stepsize=0.12, local_steps=3. This setting achieved the fastest convergence (rounds_to_target_loss_fedavg=8) while reducing communication to reach 0.8 accuracy (comm_per_0.8_acc_fedavg=80,400) versus baseline.
+
+Performance Improvement:
+- Compared to baseline, rounds to target loss improved from 12 to 8 (33.3% fewer rounds), and communication to reach 0.8 accuracy dropped from 128,640 to 80,400 (37.5% reduction). Overall test accuracy ramped faster across rounds with higher LR while remaining stable.
+
+Parameter Insights:
+- Stepsize had the strongest impact: increasing eta to 0.12 markedly accelerated convergence without instability in this high-dimensional regime. Client_fraction controlled the communication trade-off; lower C (e.g., 0.05) drastically cut comm with modest impact on rounds. Local_steps showed a sweet spot near 3; too few steps (2) with moderate C underperformed, while too many steps (5) improved rounds but often raised comm to hit target accuracy.
+
+Recommendation:
+- Use client_fraction=0.1, stepsize=0.12, local_steps=3 for best overall speed–communication trade-off in this scenario. If communication budget is extremely tight, prefer client_fraction=0.05, stepsize=0.07, local_steps=4 to minimize comm per 0.8 accuracy (−59.4% vs baseline) with only a slight rounds increase vs the best.

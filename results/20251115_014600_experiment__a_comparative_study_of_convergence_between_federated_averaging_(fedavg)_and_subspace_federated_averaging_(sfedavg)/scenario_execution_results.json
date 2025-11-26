@@ -1,0 +1,253 @@
+{
+  "scenario_design": {
+    "scenarios": [
+      {
+        "name": "Non-IID Data Heterogeneity",
+        "description": "Test convergence under non-IID client data distributions to evaluate robustness to statistical heterogeneity",
+        "parameters": {
+          "--algorithm": [
+            "FedAvg",
+            "SFedAvg"
+          ],
+          "--T": 200,
+          "--tau": 5,
+          "--C": 0.1,
+          "--eta": 0.01,
+          "--mu": 0.9,
+          "--B": 32,
+          "--r": 100
+        },
+        "dataset": "MNIST with non-IID split where each client contains data from only 2 random classes",
+        "expected_insight": "SFedAvg will maintain better convergence than FedAvg due to subspace constraints stabilizing updates in heterogeneous environments",
+        "metrics": [
+          "test_accuracy",
+          "training_loss"
+        ]
+      },
+      {
+        "name": "Label Noise Robustness",
+        "description": "Evaluate algorithm sensitivity to corrupted training labels",
+        "parameters": {
+          "--algorithm": [
+            "FedAvg",
+            "SFedAvg"
+          ],
+          "--T": 200,
+          "--tau": 5,
+          "--C": 0.1,
+          "--eta": 0.01,
+          "--mu": 0.9,
+          "--B": 32,
+          "--r": 100
+        },
+        "dataset": "MNIST with 30% of training labels randomly flipped to other classes",
+        "expected_insight": "SFedAvg will demonstrate greater robustness to label noise due to momentum projection smoothing gradient updates",
+        "metrics": [
+          "test_accuracy",
+          "training_loss"
+        ]
+      },
+      {
+        "name": "Subspace Dimension Sensitivity",
+        "description": "Investigate the impact of subspace dimension on SFedAvg convergence",
+        "parameters": {
+          "--algorithm": "SFedAvg",
+          "--T": 200,
+          "--tau": 5,
+          "--C": 0.1,
+          "--eta": 0.01,
+          "--mu": 0.9,
+          "--B": 32,
+          "--r": [
+            10,
+            50,
+            100,
+            200
+          ]
+        },
+        "dataset": "Standard IID MNIST split across clients",
+        "expected_insight": "Moderate subspace dimensions (50-100) will balance convergence speed and stability while extreme values may cause underfitting or overfitting",
+        "metrics": [
+          "test_accuracy",
+          "training_loss"
+        ]
+      },
+      {
+        "name": "Communication Efficiency Trade-offs",
+        "description": "Compare communication efficiency by varying local computation and client participation",
+        "parameters": {
+          "--algorithm": [
+            "FedAvg",
+            "SFedAvg"
+          ],
+          "--T": 200,
+          "--tau": [
+            1,
+            5,
+            10
+          ],
+          "--C": [
+            0.05,
+            0.1,
+            0.3
+          ],
+          "--eta": 0.01,
+          "--mu": 0.9,
+          "--B": 32,
+          "--r": 100
+        },
+        "dataset": "Standard IID MNIST split across clients",
+        "expected_insight": "SFedAvg will achieve better accuracy with fewer communication rounds, especially with higher local steps and lower client fractions",
+        "metrics": [
+          "test_accuracy",
+          "training_loss"
+        ]
+      },
+      {
+        "name": "Momentum Projection Impact",
+        "description": "Assess the effect of momentum coefficient on SFedAvg convergence",
+        "parameters": {
+          "--algorithm": "SFedAvg",
+          "--T": 200,
+          "--tau": 5,
+          "--C": 0.1,
+          "--eta": 0.01,
+          "--mu": [
+            0.0,
+            0.5,
+            0.9,
+            0.99
+          ],
+          "--B": 32,
+          "--r": 100
+        },
+        "dataset": "Standard IID MNIST split across clients",
+        "expected_insight": "Moderate momentum (0.5-0.9) will accelerate convergence while excessive momentum (0.99) may cause oscillations",
+        "metrics": [
+          "test_accuracy",
+          "training_loss"
+        ]
+      }
+    ],
+    "rationale": "These scenarios were chosen to systematically evaluate key aspects of SFedAvg versus FedAvg: robustness to data heterogeneity and noise (critical for real-world FL), sensitivity to SFedAvg-specific hyperparameters (subspace dimension and momentum), and communication efficiency trade-offs. Together they provide a comprehensive comparison of convergence behavior under varied conditions that reflect practical deployment challenges."
+  },
+  "execution_results": [
+    {
+      "name": "non-iid_data_heterogeneity",
+      "description": "Test convergence under non-IID client data distributions to evaluate robustness to statistical heterogeneity",
+      "parameters": {
+        "--algorithm": [
+          "FedAvg",
+          "SFedAvg"
+        ],
+        "--T": 200,
+        "--tau": 5,
+        "--C": 0.1,
+        "--eta": 0.01,
+        "--mu": 0.9,
+        "--B": 32,
+        "--r": 100
+      },
+      "expected_insight": "SFedAvg will maintain better convergence than FedAvg due to subspace constraints stabilizing updates in heterogeneous environments",
+      "status": "failed",
+      "run_dir": "run_non-iid_data_heterogeneity",
+      "error": "usage: experiment.py [-h] --out_dir OUT_DIR [--algorithm {FedAvg,SFedAvg}]\n                     [--T T] [--tau TAU] [--C C] [--eta ETA] [--mu MU] [--B B]\n                     [--r R]\nexperiment.py: error: argument --algorithm: invalid choice: \"['FedAvg', 'SFedAvg']\" (choose from 'FedAvg', 'SFedAvg')\n"
+    },
+    {
+      "name": "label_noise_robustness",
+      "description": "Evaluate algorithm sensitivity to corrupted training labels",
+      "parameters": {
+        "--algorithm": [
+          "FedAvg",
+          "SFedAvg"
+        ],
+        "--T": 200,
+        "--tau": 5,
+        "--C": 0.1,
+        "--eta": 0.01,
+        "--mu": 0.9,
+        "--B": 32,
+        "--r": 100
+      },
+      "expected_insight": "SFedAvg will demonstrate greater robustness to label noise due to momentum projection smoothing gradient updates",
+      "status": "failed",
+      "run_dir": "run_label_noise_robustness",
+      "error": "usage: experiment.py [-h] --out_dir OUT_DIR [--algorithm {FedAvg,SFedAvg}]\n                     [--T T] [--tau TAU] [--C C] [--eta ETA] [--mu MU] [--B B]\n                     [--r R]\nexperiment.py: error: argument --algorithm: invalid choice: \"['FedAvg', 'SFedAvg']\" (choose from 'FedAvg', 'SFedAvg')\n"
+    },
+    {
+      "name": "subspace_dimension_sensitivity",
+      "description": "Investigate the impact of subspace dimension on SFedAvg convergence",
+      "parameters": {
+        "--algorithm": "SFedAvg",
+        "--T": 200,
+        "--tau": 5,
+        "--C": 0.1,
+        "--eta": 0.01,
+        "--mu": 0.9,
+        "--B": 32,
+        "--r": [
+          10,
+          50,
+          100,
+          200
+        ]
+      },
+      "expected_insight": "Moderate subspace dimensions (50-100) will balance convergence speed and stability while extreme values may cause underfitting or overfitting",
+      "status": "failed",
+      "run_dir": "run_subspace_dimension_sensitivity",
+      "error": "usage: experiment.py [-h] --out_dir OUT_DIR [--algorithm {FedAvg,SFedAvg}]\n                     [--T T] [--tau TAU] [--C C] [--eta ETA] [--mu MU] [--B B]\n                     [--r R]\nexperiment.py: error: argument --r: invalid int value: '[10, 50, 100, 200]'\n"
+    },
+    {
+      "name": "communication_efficiency_trade-offs",
+      "description": "Compare communication efficiency by varying local computation and client participation",
+      "parameters": {
+        "--algorithm": [
+          "FedAvg",
+          "SFedAvg"
+        ],
+        "--T": 200,
+        "--tau": [
+          1,
+          5,
+          10
+        ],
+        "--C": [
+          0.05,
+          0.1,
+          0.3
+        ],
+        "--eta": 0.01,
+        "--mu": 0.9,
+        "--B": 32,
+        "--r": 100
+      },
+      "expected_insight": "SFedAvg will achieve better accuracy with fewer communication rounds, especially with higher local steps and lower client fractions",
+      "status": "failed",
+      "run_dir": "run_communication_efficiency_trade-offs",
+      "error": "usage: experiment.py [-h] --out_dir OUT_DIR [--algorithm {FedAvg,SFedAvg}]\n                     [--T T] [--tau TAU] [--C C] [--eta ETA] [--mu MU] [--B B]\n                     [--r R]\nexperiment.py: error: argument --algorithm: invalid choice: \"['FedAvg', 'SFedAvg']\" (choose from 'FedAvg', 'SFedAvg')\n"
+    },
+    {
+      "name": "momentum_projection_impact",
+      "description": "Assess the effect of momentum coefficient on SFedAvg convergence",
+      "parameters": {
+        "--algorithm": "SFedAvg",
+        "--T": 200,
+        "--tau": 5,
+        "--C": 0.1,
+        "--eta": 0.01,
+        "--mu": [
+          0.0,
+          0.5,
+          0.9,
+          0.99
+        ],
+        "--B": 32,
+        "--r": 100
+      },
+      "expected_insight": "Moderate momentum (0.5-0.9) will accelerate convergence while excessive momentum (0.99) may cause oscillations",
+      "status": "failed",
+      "run_dir": "run_momentum_projection_impact",
+      "error": "usage: experiment.py [-h] --out_dir OUT_DIR [--algorithm {FedAvg,SFedAvg}]\n                     [--T T] [--tau TAU] [--C C] [--eta ETA] [--mu MU] [--B B]\n                     [--r R]\nexperiment.py: error: argument --mu: invalid float value: '[0.0, 0.5, 0.9, 0.99]'\n"
+    }
+  ]
+}

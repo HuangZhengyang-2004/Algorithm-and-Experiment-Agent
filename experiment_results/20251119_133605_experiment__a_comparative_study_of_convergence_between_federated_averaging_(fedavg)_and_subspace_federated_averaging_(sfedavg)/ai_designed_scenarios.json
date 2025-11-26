@@ -1,0 +1,150 @@
+{
+  "scenarios": [
+    {
+      "name": "IID Baseline Convergence",
+      "description": "Establish baseline convergence behavior on IID client data and compare FedAvg vs SFedAvg under identical settings.",
+      "parameters": {
+        "--method": "sfedavg",
+        "--rounds": 50,
+        "--clients": 20,
+        "--client_fraction": 0.2,
+        "--local_steps": 2,
+        "--lr": 0.1,
+        "--mu": 0.9,
+        "--batch_size": 64,
+        "--dim": 30,
+        "--subspace_dim": 10,
+        "--classes": 10,
+        "--train_samples": 5000,
+        "--test_samples": 2000,
+        "--seed": 42
+      },
+      "dataset": "Synthetic softmax regression with balanced class distribution; uniformly IID partition across clients.",
+      "expected_insight": "SFedAvg should match or modestly outperform FedAvg in early rounds due to projected momentum, with similar final accuracy; communication totals differ due to subspace compression.",
+      "metrics": [
+        "train_loss",
+        "test_accuracy",
+        "uplink_floats",
+        "downlink_floats",
+        "total_floats"
+      ]
+    },
+    {
+      "name": "Non-IID Label Skew (Heterogeneity)",
+      "description": "Test convergence under heterogeneous client distributions using strong label skew to stress aggregation and projection.",
+      "parameters": {
+        "--method": "sfedavg",
+        "--rounds": 60,
+        "--clients": 50,
+        "--client_fraction": 0.2,
+        "--local_steps": 5,
+        "--lr": 0.08,
+        "--mu": 0.9,
+        "--batch_size": 64,
+        "--dim": 50,
+        "--subspace_dim": 15,
+        "--classes": 10,
+        "--train_samples": 20000,
+        "--test_samples": 5000,
+        "--seed": 123
+      },
+      "dataset": "Synthetic data with Dirichlet label skew (e.g., alpha≈0.3): each client biased toward 2–3 classes, leading to non-IID local distributions.",
+      "expected_insight": "Projected momentum in SFedAvg should stabilize updates and reduce drift, yielding faster loss reduction than FedAvg under skew; communication efficiency for SFedAvg improves due to smaller uplink deltas.",
+      "metrics": [
+        "train_loss",
+        "test_accuracy",
+        "uplink_floats",
+        "downlink_floats",
+        "total_floats"
+      ]
+    },
+    {
+      "name": "Robustness to Corruption and Label Noise",
+      "description": "Assess sensitivity to noisy labels and corrupted features to evaluate stability of subspace projection with momentum.",
+      "parameters": {
+        "--method": "sfedavg",
+        "--rounds": 50,
+        "--clients": 40,
+        "--client_fraction": 0.25,
+        "--local_steps": 3,
+        "--lr": 0.06,
+        "--mu": 0.9,
+        "--batch_size": 128,
+        "--dim": 60,
+        "--subspace_dim": 12,
+        "--classes": 10,
+        "--train_samples": 30000,
+        "--test_samples": 6000,
+        "--seed": 7
+      },
+      "dataset": "Introduce 20–30% random label flips per client and add feature outliers (e.g., heavy-tailed noise) to 10% of samples; partitions remain IID aside from corruption.",
+      "expected_insight": "SFedAvg’s projector should dampen high-variance gradient components from corrupted samples, maintaining smoother convergence and higher test accuracy versus FedAvg.",
+      "metrics": [
+        "train_loss",
+        "test_accuracy",
+        "uplink_floats",
+        "downlink_floats",
+        "total_floats"
+      ]
+    },
+    {
+      "name": "Scalability: High-Dimensional and Many Clients",
+      "description": "Evaluate algorithm scalability with increased model dimension, dataset size, and number of clients while tracking communication.",
+      "parameters": {
+        "--method": "sfedavg",
+        "--rounds": 30,
+        "--clients": 200,
+        "--client_fraction": 0.1,
+        "--local_steps": 2,
+        "--lr": 0.05,
+        "--mu": 0.9,
+        "--batch_size": 256,
+        "--dim": 500,
+        "--subspace_dim": 50,
+        "--classes": 10,
+        "--train_samples": 100000,
+        "--test_samples": 20000,
+        "--seed": 99
+      },
+      "dataset": "Large synthetic dataset with balanced labels and IID partitions across 200 clients; feature dimension increased to 500.",
+      "expected_insight": "SFedAvg should maintain stable convergence with reduced uplink communication per round; FedAvg may require more communication to reach comparable accuracy.",
+      "metrics": [
+        "train_loss",
+        "test_accuracy",
+        "uplink_floats",
+        "downlink_floats",
+        "total_floats"
+      ]
+    },
+    {
+      "name": "Edge Case and Hyperparameter Sensitivity",
+      "description": "Stress-test extreme subspace size and momentum to reveal potential failure modes and sensitivity to learning rate.",
+      "parameters": {
+        "--method": "sfedavg",
+        "--rounds": 40,
+        "--clients": 60,
+        "--client_fraction": 0.15,
+        "--local_steps": 4,
+        "--lr": 0.12,
+        "--mu": 0.99,
+        "--batch_size": 64,
+        "--dim": 100,
+        "--subspace_dim": 1,
+        "--classes": 10,
+        "--train_samples": 40000,
+        "--test_samples": 8000,
+        "--seed": 2025
+      },
+      "dataset": "Moderate-size synthetic dataset; optionally introduce mild non-IID (e.g., client-level class imbalance) to magnify instability with r=1 and high momentum.",
+      "expected_insight": "With r=1 and large μ, SFedAvg may exhibit slow or oscillatory convergence; tuning η (run repeated with --lr in {0.04, 0.08, 0.12}) is expected to stabilize training and reveal sensitivity.",
+      "metrics": [
+        "train_loss",
+        "test_accuracy",
+        "uplink_floats",
+        "downlink_floats",
+        "total_floats"
+      ]
+    }
+  ],
+  "rationale": "These scenarios directly probe the algorithmic elements in the pseudocode: rounds, client sampling, one-sided random subspace P_t with projector Π_t, and momentum projection. We cover IID baseline, strong non-IID heterogeneity, robustness to corruption, scalability in dimension and client count, and edge-case hyperparameter/signal projection settings. Each scenario is designed to be run for both FedAvg and SFedAvg (by toggling --method), enabling a comparative study of convergence and communication consistent with the algorithm title and pseudocode."
+}

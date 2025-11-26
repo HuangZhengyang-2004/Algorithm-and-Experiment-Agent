@@ -1,0 +1,55 @@
+{
+  "selected_parameters": ["stepsize", "local_steps", "momentum"],
+  "selection_rationale": "With Π=I, SFedAvg reduces to momentum FedAvg; stability is governed by step size (η) and client drift from local steps (τ), while momentum (μ) controls oscillation and overshoot. These three parameters most directly influence divergence or convergence under aggressive local training.",
+  "configs": [
+    {
+      "stepsize": 0.5,
+      "local_steps": 10,
+      "momentum": 0.9,
+      "rationale": "Scenario baseline: aggressive LR and many local steps to replicate potential instability and serve as reference."
+    },
+    {
+      "stepsize": 0.4,
+      "local_steps": 10,
+      "momentum": 0.9,
+      "rationale": "Lower LR to reduce overshoot while keeping τ high; tests if stability improves without sacrificing speed."
+    },
+    {
+      "stepsize": 0.5,
+      "local_steps": 8,
+      "momentum": 0.9,
+      "rationale": "Reduce local drift by fewer steps at high LR; probes τ sensitivity with fixed μ."
+    },
+    {
+      "stepsize": 0.5,
+      "local_steps": 10,
+      "momentum": 0.8,
+      "rationale": "Lower momentum to mitigate oscillations under large updates; isolates μ’s role in stability."
+    },
+    {
+      "stepsize": 0.35,
+      "local_steps": 12,
+      "momentum": 0.95,
+      "rationale": "More local steps with smaller LR and higher momentum to smooth updates yet maintain progress."
+    },
+    {
+      "stepsize": 0.6,
+      "local_steps": 6,
+      "momentum": 0.85,
+      "rationale": "Higher LR paired with fewer local steps and reduced momentum; tests speed–stability trade-off at the edge."
+    },
+    {
+      "stepsize": 0.45,
+      "local_steps": 15,
+      "momentum": 0.9,
+      "rationale": "Moderate LR with many local steps to explore drift limits under strong momentum."
+    },
+    {
+      "stepsize": 0.3,
+      "local_steps": 20,
+      "momentum": 0.95,
+      "rationale": "Very many local steps with conservative LR and high momentum; aims for stability without divergence."
+    }
+  ],
+  "expected_improvement": "Identify a stability envelope that avoids loss spikes/divergence; expect smoother convergence and equal or slightly higher test accuracy than the scenario baseline by moderating η, τ, and μ."
+}

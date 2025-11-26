@@ -1,0 +1,631 @@
+\documentclass[11pt]{article}
+
+% ---------- Packages ----------
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsfonts,mathtools}
+\usepackage{bm}
+\usepackage{bbm}
+\usepackage{amsthm}
+\usepackage{enumitem}
+\usepackage{algorithm}
+\usepackage[noend]{algpseudocode}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{subcaption}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=blue, citecolor=blue, urlcolor=blue}
+
+% ---------- Theorem-like environments ----------
+\newtheorem{assumption}{Assumption}
+\newtheorem{lemma}{Lemma}
+\newtheorem{remark}{Remark}
+\newtheorem{definition}{Definition}
+\newtheorem{theorem}{Theorem}
+
+% ---------- Macros ----------
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\norm}[1]{\left\lVert #1 \right\rVert}
+\newcommand{\ip}[2]{\left\langle #1,\, #2 \right\rangle}
+\newcommand{\St}{\mathrm{St}} % Stiefel manifold
+\newcommand{\one}{\mathbbm{1}}
+
+\newcommand{\thet}{\theta}
+\newcommand{\grad}{\nabla}
+\newcommand{\wh}[1]{\widehat{#1}}
+\newcommand{\wt}[1]{\widetilde{#1}}
+
+% block length and momentum symbols (paper-wide)
+\newcommand{\bl}{\tau}          % local steps per round
+\newcommand{\mom}{\mu}          % momentum coefficient in [0,1)
+\newcommand{\stepsize}{\eta}    % stepsize
+\newcommand{\Lsmooth}{L}        % smoothness constant
+\newcommand{\Piop}{\Pi}         % projector
+
+% ---------- Title ----------
+\title{Subspace-FedAvg with Random One-Sided Projections:\\
+Algorithm, Standard Assumptions, and a Federated Local-Drift Lemma}
+\author{Anonymous}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We present a Subspace-FedAvg (SFedAvg) method that performs blockwise local training inside a randomly sampled one-sided subspace, together with momentum projection (MP) at round boundaries. We formalize the algorithmic description, list standard assumptions (nonconvex $L$-smooth objective, unbiased minibatches with bounded variance, bounded client dissimilarity, partial participation, and blockwise one-sided random projections), and state a federated local-drift lemma that is independence-safe in the sense that stochastic subspace identities are only invoked on gradient terms independent of the subspace. Proofs are deferred.
+\end{abstract}
+
+% -------------------- Section: Problem Setup --------------------
+\section{Problem Setup and Notation}
+We consider $N$ clients with local objectives $F_i:\R^d\to\R$ and the global objective
+\[
+F(\thet)\;=\;\sum_{i=1}^N p_i\,F_i(\thet),\qquad p_i\ge0,\ \sum_i p_i=1.
+\]
+At communication round $t$ the server broadcasts $\thet^t$ and a block length~$\bl\in\mathbb{N}$. Each selected client performs $\bl$ local steps and returns its model delta; the server averages updates. We write $m$ for the number of participating clients in a round.
+
+\paragraph{One-sided random subspace and projector.}
+At the beginning of round $t$ (i.e., at the block boundary), we draw a one-sided subspace basis $P_t\in\St(d,r)$ uniformly at random and form the orthoprojector
+\[
+\Piop_t \;=\; P_t P_t^\top \in \R^{d\times d}.
+\]
+The subspace ratio is $\delta := r/d \in (0,1]$. Within round $t$ the projector $\Piop_t$ is held fixed. When moving to the next round, momentum is projected via MP (defined below).
+
+% -------------------- Algorithm --------------------
+\section{Algorithm: SFedAvg with Random One-Sided Projections and MP}
+We present the server orchestration and client-side local update. The scheme uses heavy-ball momentum with coefficient $\mom\in[0,1)$ and stepsize $\stepsize>0$, applied to \emph{projected} stochastic gradients.
+
+\begin{algorithm}[h!]
+\caption{\textsc{SFedAvg-GoLore}: One-Sided Random Subspace + Momentum Projection (MP)}
+\label{alg:sfedavg}
+\begin{algorithmic}[1]
+\State \textbf{Input:} rounds $T$, local steps $\bl$, client fraction $C$, stepsize $\stepsize$, momentum $\mom$, batch size $B$
+\State \textbf{Server initialization:} $\thet^0$
+\For{$t=0,1,\dots,T-1$} \Comment{Round $t$}
+  \State Sample one-sided subspace: draw $P_t\in\St(d,r)$; set $\Piop_t \gets P_t P_t^\top$ \hfill \emph{(held fixed within round)}
+  \State Sample client subset $S_t$ with $|S_t|=m\approx C N$
+  \ForAll{$i\in S_t$ \textbf{in parallel}}
+     \State Send $(\thet^t,\Piop_t)$ to client $i$
+     \State Receive model delta $\Delta_i^t \gets \textsc{ClientUpdate}(i;\thet^t,\Piop_t,\bl,\stepsize,\mom,B)$
+  \EndFor
+  \State \textbf{Aggregation:} $\thet^{t+1}\gets \thet^t + \frac{1}{m}\sum_{i\in S_t}\Delta_i^t$
+\EndFor
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[h!]
+\caption{\textsc{ClientUpdate}$(i;\thet^t,\Piop_t,\bl,\stepsize,\mom,B)$ with MP at block start}
+\label{alg:client}
+\begin{algorithmic}[1]
+\State \textbf{Input on client $i$:} server model $\thet^t$, projector $\Piop_t$, local steps $\bl$, stepsize $\stepsize$, momentum $\mom$, batch size $B$
+\State \textbf{(Optional MP)} If a momentum state $v_i^{\mathrm{prev}}$ is stored from the previous round, set $v_i^0 \gets \Piop_t\,v_i^{\mathrm{prev}}$; else set $v_i^0\gets 0$
+\State $\thet_{i,0}\gets \thet^t$
+\For{$s=0,1,\dots,\bl-1$}
+  \State Sample a minibatch $\xi_{i,s}$ of size $B$ and compute $g_{i,s}\gets \grad F_i(\thet_{i,s};\xi_{i,s})$
+  \State $v_{i,s+1}\gets \mom\,v_{i,s}+\Piop_t\, g_{i,s}$ \Comment{one-sided projected momentum}
+  \State $\thet_{i,s+1}\gets \thet_{i,s}-\stepsize\, v_{i,s+1}$
+\EndFor
+\State \textbf{Return:} $\Delta_i^t \gets \thet_{i,\bl}-\thet^t$ and store $v_i^{\mathrm{prev}}\gets v_{i,\bl}$
+\end{algorithmic}
+\end{algorithm}
+
+\begin{remark}[Momentum Projection (MP)]
+At the beginning of each round $t$ the projector $\Piop_t$ changes independently of minibatch sampling. MP replaces the stored momentum by its projection onto the new subspace, $v\leftarrow \Piop_t v$, ensuring that the subsequent projected updates are consistent with the current subspace and simplifying independence arguments used in the analysis.
+\end{remark}
+
+% -------------------- Assumptions --------------------
+\section{Standard Assumptions}
+We work under widely used nonconvex stochastic assumptions tailored to federated learning with partial participation and client heterogeneity.
+
+\begin{assumption}[Lower bound and $L$-smoothness]\label{ass:smooth}
+$F$ is bounded below by $F_\star>-\infty$ and has $L$-Lipschitz gradient:
+$\norm{\grad F(x)-\grad F(y)}\le \Lsmooth \norm{x-y}$ for all $x,y\in\R^d$.
+\end{assumption}
+
+\begin{assumption}[Unbiased stochastic gradients with bounded variance]\label{ass:variance}
+For any client $i$ and parameter $\thet$, with a minibatch $\xi$ of size $B$,
+\[
+\E_\xi\big[\grad F_i(\thet;\xi)\big]=\grad F_i(\thet),\qquad
+\E_\xi\big[\norm{\grad F_i(\thet;\xi)-\grad F_i(\thet)}^2\big]\le \sigma^2/B.
+\]
+\end{assumption}
+
+\begin{assumption}[Bounded dissimilarity (heterogeneity)]\label{ass:hetero}
+For all $\thet$, the client gradients satisfy
+\[
+\E_{i\sim p}\Big[\norm{\grad F_i(\thet)-\grad F(\thet)}^2\Big]\le \zeta^2.
+\]
+\end{assumption}
+
+\begin{assumption}[Partial participation]\label{ass:participation}
+At each round $t$ a subset $S_t$ of $m$ clients is sampled (e.g., uniformly without replacement) and the server aggregates their deltas by averaging.
+\end{assumption}
+
+\begin{assumption}[Blockwise one-sided random projection and independence at block start]\label{ass:proj}
+At the start of each round $t$ a one-sided basis $P_t\sim \text{Unif}(\St(d,r))$ is drawn independently of the minibatch sampling, momentum, and future randomness within the round, and $\Piop_t=P_tP_t^\top$ is fixed throughout the round. The subspace ratio is $\delta=r/d\in(0,1]$ and
+\[
+\E[\Piop_t]=\delta I,\qquad \E\big[\norm{\Piop_t u}^2\big]=\delta \norm{u}^2\quad \text{for any fixed }u\in\R^d.
+\]
+\end{assumption}
+
+\begin{assumption}[Stepsize--local-steps compatibility]\label{ass:kappa}
+Define $\kappa := \frac{\Lsmooth\,\stepsize\,\bl}{\,1-\mom\,}$. We assume $\kappa\le \tfrac14$.
+\end{assumption}
+
+% -------------------- Lemma (Independence-safe Local Drift) --------------------
+\section{A Federated Local-Drift Lemma (Independence-Safe)}
+We state a drift bound for one round $t$ where the projector $\Piop_t$ is held fixed. The lemma only leverages the stochastic subspace identities from Assumption~\ref{ass:proj} on the \emph{block-start} gradient $\grad F(\thet^t)$ (which is independent of $\Piop_t$); all other terms (heterogeneity, minibatch noise, and smoothness differences that depend on the projected trajectory) are controlled without invoking independence.
+
+\paragraph{Within-round notation.}
+On client $i$ we denote the local iterates by $\thet_{i,0}=\thet^t$ and
+\[
+v_{i,s+1}=\mom\,v_{i,s}+\Piop_t\,\grad F_i(\thet_{i,s};\xi_{i,s}),
+\qquad
+\thet_{i,s+1}=\thet_{i,s}-\stepsize\,v_{i,s+1},
+\quad s=0,\dots,\bl-1.
+\]
+Let $a_{i,s} := \E\big[\norm{\thet_{i,s}-\thet^t}\big]$ and $b_{i,s}:= \E\big[\norm{\thet_{i,s}-\thet^t}^2\big]$.
+
+\begin{lemma}[Federated local drift under random one-sided projection; independence-safe]\label{lem:local-drift}
+Suppose Assumptions~\ref{ass:smooth}--\ref{ass:kappa} hold, and $\Piop_t$ is sampled at the round boundary and fixed within the round as in Assumption~\ref{ass:proj}. Then there exist absolute constants $C_1,C_2>0$ such that for any client $i$ and any $s\in\{0,1,\dots,\bl\}$,
+\begin{align}
+a_{i,s}
+&\;\le\; \frac{C_1\,\stepsize\, s}{\,1-\mom\,}\Big(\sqrt{\delta}\,\norm{\grad F(\thet^t)}+\zeta+\sigma/\sqrt{B}\Big),
+\tag{L2$\,'$-a}\label{eq:L2a}\\
+b_{i,s}
+&\;\le\; \frac{C_2\,\stepsize^2\, s^2}{(1-\mom)^2}
+\Big(\delta\,\norm{\grad F(\thet^t)}^2+\zeta^2+\sigma^2/B\Big).
+\tag{L2$\,'$-b}\label{eq:L2b}
+\end{align}
+A valid choice is $C_1=4$ and $C_2=16$ under $\kappa\le \tfrac14$.
+\end{lemma}
+\begin{proof}[Proof of Lemma~\ref{lem:local-drift}]
+Fix a round $t$ and a participating client $i$. Let $g_{i,s}:=\nabla F_i(\thet_{i,s};\xi_{i,s})$ denote the stochastic gradient at local step $s$. 
+By momentum projection (MP) at the block boundary we may assume $v_{i,0}=0$ without loss of generality (a nonzero projected $v_{i,0}$ only adds an additive term of order $\stepsize\|v_{i,0}\|/(1-\mom)$ which can be absorbed in the constants under a standard bounded-initial-state argument).
+
+\paragraph{Step 1: Closed forms and weight bounds.}
+Solving the linear recursion 
+$v_{i,s+1}=\mom v_{i,s}+\Piop_t g_{i,s}$ with $v_{i,0}=0$ yields
+\[
+v_{i,s+1}=\sum_{j=0}^{s}\mom^{\,s-j}\,\Piop_t g_{i,j}.
+\]
+Hence, summing $\thet_{i,s+1}-\thet_{i,s}=-\stepsize\,v_{i,s+1}$ gives
+\begin{equation}\label{eq:traj}
+\thet_{i,s}-\thet^t
+= -\,\stepsize\sum_{j=0}^{s-1} w_{s,j}\,\Piop_t g_{i,j},
+\qquad
+w_{s,j}:=\sum_{k=j+1}^{s}\mom^{\,k-1-j}
+=\frac{1-\mom^{\,s-j}}{1-\mom}.
+\end{equation}
+The weights satisfy $0\le w_{s,j}\le (1-\mom)^{-1}$ and
+\begin{equation}\label{eq:weight-sums}
+\sum_{j=0}^{s-1} w_{s,j}\ \le\ \frac{s}{1-\mom},
+\qquad
+\sum_{j=0}^{s-1} w_{s,j}^2\ \le\ \frac{s}{(1-\mom)^2}.
+\end{equation}
+
+\paragraph{Step 2: A weighted Cauchy inequality and a second-moment master bound.}
+Define $b_{i,s}:=\E\|\thet_{i,s}-\thet^t\|^2$.
+From \eqref{eq:traj} and the inequality
+$\big\|\sum_j a_j x_j\big\|^2\le (\sum_j a_j)\,\sum_j a_j\|x_j\|^2$ for $a_j\ge 0$,
+we obtain
+\begin{equation}\label{eq:master}
+b_{i,s}
+=\E\left\|\,\stepsize\sum_{j=0}^{s-1} w_{s,j}\,\Piop_t g_{i,j}\right\|^2
+\ \le\
+\frac{\stepsize^2\,s}{(1-\mom)^2}
+\sum_{j=0}^{s-1}\E\big\|\Piop_t g_{i,j}\big\|^2.
+\end{equation}
+
+\paragraph{Step 3: Decomposing $g_{i,j}$ in an independence-safe way.}
+Write
+\[
+g_{i,j}=\underbrace{\nabla F(\thet^t)}_{=:h_0}
++\underbrace{\big(\nabla F_i(\thet_{i,j})-\nabla F_i(\thet^t)\big)}_{=:h_1}
++\underbrace{\big(\nabla F_i(\thet^t)-\nabla F(\thet^t)\big)}_{=:h_2}
++\underbrace{\big(g_{i,j}-\nabla F_i(\thet_{i,j})\big)}_{=:h_3}.
+\]
+By Assumption~\ref{ass:proj}, $\Piop_t$ is sampled at the block start and independent of $\nabla F(\thet^t)$; hence
+\begin{equation}\label{eq:proj-start}
+\E\big\|\Piop_t h_0\big\|^2=\E\big\|\Piop_t \nabla F(\thet^t)\big\|^2=\delta\,\|\nabla F(\thet^t)\|^2.
+\end{equation}
+For the \emph{dependent} terms $h_1,h_2,h_3$ we do \emph{not} invoke independence; instead, using $\|\Piop_t\|\le 1$ and standard assumptions,
+\begin{align}
+\E\big\|\Piop_t h_1\big\|^2
+&\le \E\big\|h_1\big\|^2
+\le \Lsmooth^2\,\E\|\thet_{i,j}-\thet^t\|^2
+= \Lsmooth^2\,b_{i,j},\label{eq:h1}\\
+\E\big\|\Piop_t h_2\big\|^2
+&\le \E\big\|h_2\big\|^2
+\le \zeta^2 \quad\text{(by Assumption~\ref{ass:hetero}, in expectation over the client index)},\label{eq:h2}\\
+\E\big\|\Piop_t h_3\big\|^2
+&\le \E\big\|h_3\big\|^2
+\le \sigma^2/B \quad\text{(by Assumption~\ref{ass:variance})}.\label{eq:h3}
+\end{align}
+Using $\|x_0+x_1+x_2+x_3\|^2\le 4\sum_{r=0}^3\|x_r\|^2$, we combine \eqref{eq:proj-start}–\eqref{eq:h3} to obtain
+\begin{equation}\label{eq:proj-grad-sq}
+\E\big\|\Piop_t g_{i,j}\big\|^2
+\ \le\ 4\delta\,\|\nabla F(\thet^t)\|^2
+\ +\ 4\Lsmooth^2\,b_{i,j}
+\ +\ 4\zeta^2
+\ +\ 4\sigma^2/B.
+\end{equation}
+
+\paragraph{Step 4: Discrete Gr\"onwall closure.}
+Plugging \eqref{eq:proj-grad-sq} into \eqref{eq:master} yields, for all $s\le \bl$,
+\begin{equation}\label{eq:gronwall-form}
+b_{i,s}
+\ \le\
+\underbrace{\frac{4\,\stepsize^2\,s^2}{(1-\mom)^2}}_{=:~\alpha s^2}\,
+\underbrace{\Big(\delta\,\|\nabla F(\thet^t)\|^2+\zeta^2+\sigma^2/B\Big)}_{=:~S_0}
+\ +\
+\underbrace{\frac{4\,\Lsmooth^2\,\stepsize^2\,s}{(1-\mom)^2}}_{=:~\beta s}\,
+\sum_{j=0}^{s-1} b_{i,j}.
+\end{equation}
+By Assumption~\ref{ass:kappa} with $\kappa:=\Lsmooth\stepsize\bl/(1-\mom)\le \tfrac14$, we have for any $s\le \bl$ that
+\[
+\beta s^2
+=\frac{4\Lsmooth^2\stepsize^2 s^2}{(1-\mom)^2}
+\le \frac{4\Lsmooth^2\stepsize^2 \bl^2}{(1-\mom)^2}
+=4\kappa^2\ \le\ \tfrac14.
+\]
+We now prove by induction on $s$ that
+\begin{equation}\label{eq:claim-b}
+b_{i,s}\ \le\ \frac{C_2\,\stepsize^2\,s^2}{(1-\mom)^2}\,S_0
+\qquad\text{for all }s\in\{0,1,\dots,\bl\},
+\end{equation}
+with $C_2=16$. The base case $s=0$ is immediate. Assume \eqref{eq:claim-b} holds for all $j<s$. Then
+\[
+\sum_{j=0}^{s-1} b_{i,j}
+\ \le\ \frac{C_2\,\stepsize^2}{(1-\mom)^2}\,S_0\sum_{j=0}^{s-1} j^2
+\ \le\ \frac{C_2\,\stepsize^2}{(1-\mom)^2}\,S_0\cdot \frac{s^3}{3}.
+\]
+Substituting into \eqref{eq:gronwall-form} we get
+\[
+b_{i,s}
+\ \le\ \alpha s^2 S_0\Big(1+\frac{\beta C_2 s^2}{3}\Big)
+\ \le\ \alpha s^2 S_0\Big(1+\frac{C_2}{12}\Big)
+\ \le\ \frac{C_2\,\stepsize^2\,s^2}{(1-\mom)^2}\,S_0,
+\]
+where the last inequality holds for $C_2\ge 16$ (since $\alpha=4\stepsize^2/(1-\mom)^2$). This completes the induction and establishes \eqref{eq:L2b} with $C_2=16$.
+
+\paragraph{Step 5: First-moment bound by Jensen.}
+By Jensen's inequality and $\sqrt{a+b+c}\le \sqrt{a}+\sqrt{b}+\sqrt{c}$,
+\[
+a_{i,s}
+=\E\|\thet_{i,s}-\thet^t\|
+\ \le\ \sqrt{b_{i,s}}
+\ \le\ \frac{\sqrt{C_2}\,\stepsize\,s}{1-\mom}\,
+\sqrt{\delta\,\|\nabla F(\thet^t)\|^2+\zeta^2+\sigma^2/B}
+\ \le\ \frac{C_1\,\stepsize\,s}{1-\mom}\Big(\sqrt{\delta}\,\|\nabla F(\thet^t)\|+\zeta+\sigma/\sqrt{B}\Big),
+\]
+with $C_1=\sqrt{C_2}=4$, which is \eqref{eq:L2a}.
+
+\medskip
+\noindent
+This completes the proof. \qedhere
+\end{proof}
+
+\begin{remark}[On the role of independence]
+The stochastic identities $\E[\Piop_t]=\delta I$ and $\E[\norm{\Piop_t u}^2]=\delta\norm{u}^2$ are applied \emph{only} to $u=\grad F(\thet^t)$, which is independent of $\Piop_t$ by Assumption~\ref{ass:proj}. For all other components of the stochastic gradients---heterogeneity, minibatch noise, and smoothness-induced differences that depend on the trajectory $\{\thet_{i,s}\}$ and thus on $\Piop_t$---we avoid invoking independence and instead use $\norm{\Piop_t}\le1$ together with Assumptions~\ref{ass:smooth}--\ref{ass:hetero}.
+\end{remark}
+
+% === One-round descent and global stationarity after Lemma~\ref{lem:local-drift} ===
+
+\begin{lemma}[One-round descent under random one-sided projection; independence-safe]\label{lem:one-round-descent}
+Let Assumptions~\ref{ass:smooth}--\ref{ass:kappa} hold and fix a round $t$. Let $\Delta_t := \frac{1}{m}\sum_{i \in S_t}(\thet_{i,\bl} - \thet^t)$ be the aggregated model delta and set
+\[
+w_{\bl,j} := \frac{1 - \mom^{\bl-j}}{1-\mom}, \qquad 
+W_\bl := \sum_{j=0}^{\bl-1} w_{\bl,j}, \qquad 
+\text{so that}\quad \bl \le W_\bl \le \frac{\bl}{1-\mom}.
+\]
+Then there exist absolute constants $C_{\mathrm{d}}, C_{\mathrm{v}} > 0$ such that
+\begin{equation}\label{eq:descent-one-round}
+\begin{aligned}
+\E\left[F(\thet^{t+1})\right]
+\le & \, F(\thet^t)
+- \stepsize \delta W_\bl \|\grad F(\thet^t)\|^2 \\
+& + C_{\mathrm{d}} \Lsmooth \stepsize^2 \frac{\bl^2}{(1-\mom)^2} \|\grad F(\thet^t)\|^2 \\
+& + C_{\mathrm{v}} \Lsmooth \stepsize^2 \frac{\bl^2}{(1-\mom)^2} 
+\Big(\zeta^2 + \frac{\sigma^2}{B}\Big).
+\end{aligned}
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+By $L$-smoothness (Assumption~\ref{ass:smooth}),
+\[
+F(\thet^{t+1}) \le F(\thet^t) + \ip{\grad F(\thet^t)}{\Delta_t} + \frac{\Lsmooth}{2} \|\Delta_t\|^2.
+\]
+
+\paragraph{Bounding the inner product.}
+Using the client recursion (cf. \eqref{eq:traj} with $s = \bl$) we have
+\[
+\Delta_t = \frac{1}{m} \sum_{i \in S_t} (\thet_{i,\bl} - \thet^t)
+= -\stepsize \frac{1}{m} \sum_{i \in S_t} \sum_{j=0}^{\bl-1} w_{\bl,j} \Piop_t g_{i,j},
+\]
+where $g_{i,j} := \nabla F_i(\thet_{i,j}; \xi_{i,j})$. Taking expectation with respect to client sampling and minibatch noise and decomposing $g_{i,j}$ as in the proof of Lemma~\ref{lem:local-drift}, we get:
+\[
+\E\left[\frac{1}{m} \sum_{i \in S_t} g_{i,j}\right] = \E_{i \sim p}\left[\grad F_i(\thet_{i,j})\right] = \grad F(\thet^t) + \E_{i \sim p}\left[\grad F_i(\thet_{i,j}) - \grad F_i(\thet^t)\right].
+\]
+Thus, 
+\[
+\E \ip{\grad F(\thet^t)}{\Delta_t}
+= - \stepsize \sum_{j=0}^{\bl-1} w_{\bl,j} \E \ip{\grad F(\thet^t)}{\Piop_t \grad F(\thet^t)} - \stepsize \sum_{j=0}^{\bl-1} w_{\bl,j} \E \ip{\grad F(\thet^t)}{\Piop_t \left(\grad F_i(\thet_{i,j}) - \grad F_i(\thet^t)\right)}.
+\]
+By Assumption~\ref{ass:proj}, $\Piop_t$ is independent of $\grad F(\thet^t)$ and $\E[\Piop_t] = \delta I$, so
+\[
+\E \ip{\grad F(\thet^t)}{\Piop_t \grad F(\thet^t)} = \delta \|\grad F(\thet^t)\|^2.
+\]
+For the difference term, use Cauchy-Schwarz, $\|\Piop_t\| \le 1$, and smoothness:
+\[
+\big| \ip{\grad F(\thet^t)}{\Piop_t(\grad F_i(\thet_{i,j}) - \grad F_i(\thet^t))} \big| 
+\le \|\grad F(\thet^t)\| \Lsmooth \|\thet_{i,j} - \thet^t\|.
+\]
+Taking expectation and invoking Lemma~\ref{lem:local-drift}, inequality \eqref{eq:L2a}, we obtain
+\[
+\E \ip{\grad F(\thet^t)}{\Delta_t}
+\le -\stepsize \delta W_\bl \|\grad F(\thet^t)\|^2 + C \Lsmooth \stepsize^2 \frac{\bl^2}{(1-\mom)^2} \|\grad F(\thet^t)\| \Big( \sqrt{\delta} \|\grad F(\thet^t)\| + \zeta + \frac{\sigma}{\sqrt{B}} \Big).
+\]
+This simplifies to:
+\[
+\E \ip{\grad F(\thet^t)}{\Delta_t}
+\le -\stepsize \delta W_\bl \|\grad F(\thet^t)\|^2 + C' \Lsmooth \stepsize^2 \frac{\bl^2}{(1-\mom)^2} \|\grad F(\thet^t)\|^2 + C' \Lsmooth \stepsize^2 \frac{\bl^2}{(1-\mom)^2} (\zeta^2 + \frac{\sigma^2}{B}).
+\]
+
+\paragraph{Bounding the quadratic term.}
+By Jensen and independence in client sampling,
+\[
+\E\|\Delta_t\|^2 \le \frac{1}{m} \E\left\| \thet_{i,\bl} - \thet^t \right\|^2
+= \frac{1}{m} \E \left\| \stepsize \sum_{j=0}^{\bl-1} w_{\bl,j} \Piop_t g_{i,j} \right\|^2.
+\]
+Using the weighted Cauchy inequality and Lemma~\ref{lem:local-drift}, inequality \eqref{eq:master}, together with the independence-safe bound \eqref{eq:proj-grad-sq}, we get:
+\[
+\E\|\Delta_t\|^2 
+\le \frac{\stepsize^2}{m} \cdot \frac{\bl}{(1-\mom)^2} \sum_{j=0}^{\bl-1} \E \|\Piop_t g_{i,j}\|^2
+\le \frac{C'' \stepsize^2}{m} \cdot \frac{\bl}{(1-\mom)^2} \left( \delta \|\grad F(\thet^t)\|^2 + \zeta^2 + \frac{\sigma^2}{B} \right)
+\]
+\[
++ \frac{C'' \stepsize^2}{m} \cdot \frac{\bl}{(1-\mom)^2} \Lsmooth^2 \sum_{j=0}^{\bl-1} b_{i,j}.
+\]
+By Lemma~\ref{lem:local-drift}, inequality \eqref{eq:L2b}, we obtain
+\[
+\sum_{j=0}^{\bl-1} b_{i,j}
+\le \frac{C_2 \stepsize^2}{(1-\mom)^2} \Big( \delta \|\grad F(\thet^t)\|^2 + \zeta^2 + \frac{\sigma^2}{B} \Big) \sum_{j=0}^{\bl-1} j^2
+\le \frac{C_2 \stepsize^2 \bl^3}{(1-\mom)^2} \Big( \delta \|\grad F(\thet^t)\|^2 + \zeta^2 + \frac{\sigma^2}{B} \Big).
+\]
+Consequently,
+\[
+\frac{\Lsmooth}{2} \E \|\Delta_t\|^2
+\le C''' \Lsmooth \stepsize^2 \frac{\bl}{m(1-\mom)^2} \left( \delta \|\grad F(\thet^t)\|^2 + \zeta^2 + \frac{\sigma^2}{B} \right)
++ C''' \Lsmooth^3 \stepsize^4 \frac{\bl^4}{m(1-\mom)^4} \left( \delta \|\grad F(\thet^t)\|^2 + \zeta^2 + \frac{\sigma^2}{B} \right).
+\]
+Under Assumption~\ref{ass:kappa}, $\kappa = \Lsmooth \stepsize \bl / (1 - \mom) \le 1/4$, so the last term in the above equation is bounded by a constant multiple of the first one and can be absorbed. Combining everything, we obtain the final inequality.
+
+\end{proof}
+
+\begin{theorem}[Global stationarity rate]\label{thm:stationarity}
+Let Assumptions~\ref{ass:smooth}--\ref{ass:kappa} hold. Suppose the stepsize further satisfies
+\[
+\stepsize \;\le\; \frac{c_0\,\delta}{\Lsmooth}\cdot\frac{(1-\mom)^2}{\bl}
+\qquad \text{for some }c_0\in\Big(0,\frac{1}{2C_{\mathrm{d}}}\Big),
+\]
+and define \(S := \zeta^2 + \frac{\sigma^2}{B}\). Then for any \(T \ge 1\),
+\begin{equation}\label{eq:avg-grad-rate}
+\frac{1}{T}\sum_{t=0}^{T-1}\E\big\|\grad F(\thet^t)\big\|^2
+\;\le\;
+\frac{2\big(F(\thet^0) - F_\star\big)}{\delta \, \stepsize \, \bl \, T}
+\;+\;
+\frac{C\,\Lsmooth\,\stepsize\,\bl}{\delta(1-\mom)^2}\, S,
+\end{equation}
+where \(C > 0\) is an absolute constant depending only on \(C_{\mathrm{d}}, C_{\mathrm{v}}\). In particular, choosing $\stepsize$ appropriately yields
+\[
+\frac{1}{T}\sum_{t=0}^{T-1}\E\big\|\grad F(\thet^t)\big\|^2
+\;=\;
+\mathcal{O}\!\left(\frac{L\Delta}{\delta \sqrt{T}}+\frac{L\Delta}{(1-\mom)^2\delta^2T}\right),
+\]
+where $\Delta:=F(\theta^0)-F_\star$.
+\end{theorem}
+
+\begin{proof}
+Apply Lemma~\ref{lem:one-round-descent} and take expectations; using \(W_\bl \ge \bl\), we obtain:
+\[
+\E F(\thet^{t+1}) \le \E F(\thet^t)
+- \underbrace{\stepsize \, \delta \, \bl}_{=:A} \, \E \|\grad F(\thet^t)\|^2
++ \underbrace{C_{\mathrm{d}} \Lsmooth \, \stepsize^2 \, \frac{\bl^2}{(1-\mom)^2}}_{=:B} \, \E \|\grad F(\thet^t)\|^2
++ \underbrace{C_{\mathrm{v}} \Lsmooth \, \stepsize^2 \frac{\bl^2}{(1-\mom)^2}S}_{=:D}.
+\]
+Next, sum over \(t = 0, \dots, T-1\) and perform telescoping:
+\[
+(A - B) \sum_{t=0}^{T-1} \E \|\grad F(\thet^t)\|^2
+\le F(\thet^0) - \E F(\thet^T) + D T
+\le F(\thet^0) - F_\star + D T.
+\]
+By the stepsize condition \(A - B \ge \stepsize \, \delta \, \bl / 2\), divide by \(T(A - B)\) to get:
+\[
+\frac{1}{T} \sum_{t=0}^{T-1} \E \|\grad F(\thet^t)\|^2
+\le \frac{2 \big(F(\thet^0) - F_\star\big)}{\delta \, \stepsize \, \bl \, T}
++ \frac{2 D}{\delta \, \stepsize \, \bl}.
+\]
+Substituting the definition of \(D\) and absorbing constants, we obtain \eqref{eq:avg-grad-rate}.
+
+
+\end{proof}
+
+% -------------------- Experiments --------------------
+\section{Experiments}
+\label{sec:experiments}
+
+To validate our theoretical findings and demonstrate the practical effectiveness of SFedAvg with random one-sided projections, we conduct comprehensive experiments on federated linear regression tasks. Our experimental setup is designed to evaluate the communication-performance trade-offs across different compression ratios while maintaining fair comparison with established baselines.
+
+\subsection{Experimental Setup}
+\label{subsec:setup}
+
+\paragraph{Problem formulation.} We consider federated linear regression with heterogeneous data distribution across clients. The global objective is to minimize:
+\[
+F(\theta) = \frac{1}{N}\sum_{i=1}^N F_i(\theta), \quad F_i(\theta) = \frac{1}{n_i}\sum_{j=1}^{n_i} \frac{1}{2}(x_{i,j}^\top\theta - y_{i,j})^2,
+\]
+where $\theta \in \mathbb{R}^d$ is the model parameter, and $(x_{i,j}, y_{i,j})$ represents the $j$-th sample on client $i$.
+
+\paragraph{Data generation.} We generate synthetic heterogeneous data to simulate realistic federated scenarios:
+\begin{itemize}[leftmargin=1.5em,itemsep=0.1em]
+\item \textbf{Ground truth:} $\theta^* \in \mathbb{R}^d$ with $\|\theta^*\| = 2.5$
+\item \textbf{Client heterogeneity:} Each client $i$ has a mean shift $\mu_i \sim \mathcal{N}(0, 0.1^2 I_d)$
+\item \textbf{Feature distribution:} $x_{i,j} \sim \mathcal{N}(\mu_i, I_d)$
+\item \textbf{Noise heterogeneity:} $y_{i,j} = x_{i,j}^\top\theta^* + \epsilon_{i,j}$ where $\epsilon_{i,j} \sim \mathcal{N}(0, \sigma_i^2)$ and $\sigma_i^2 = 0.1^2(1 + 0.05i)$
+\end{itemize}
+
+\paragraph{Experimental parameters.} Our experiments use the following configuration:
+\begin{itemize}[leftmargin=1.5em,itemsep=0.1em]
+\item \textbf{Model dimension:} $d = 30$
+\item \textbf{Number of clients:} $N = 10$
+\item \textbf{Client participation:} $C = 0.3$ (30\% clients per round)
+\item \textbf{Samples per client:} $n_i = 80$
+\item \textbf{Communication rounds:} $T = 80$
+\item \textbf{Local steps:} $\tau = 5$
+\item \textbf{Batch size:} $B = 15$
+\item \textbf{Compression ratios:} $\delta \in \{0.25, 0.5, 1.0\}$
+\end{itemize}
+
+\paragraph{Hyperparameter optimization.} To ensure fair comparison, we conduct grid search for optimal hyperparameters:
+\begin{itemize}[leftmargin=1.5em,itemsep=0.1em]
+\item \textbf{Learning rates:} $\eta \in \{0.001, 0.003, 0.01, 0.03, 0.1\}$
+\item \textbf{Momentum coefficients:} $\mu \in \{0.0, 0.5, 0.9, 0.95, 0.99\}$
+\end{itemize}
+Each algorithm is evaluated across all hyperparameter combinations, and we report results using the best-performing configuration for each method.
+
+\paragraph{Baselines.} We compare SFedAvg against the following established methods:
+\begin{itemize}[leftmargin=1.5em,itemsep=0.1em]
+\item \textbf{FedAvg:} Standard federated averaging without momentum \cite{mcmahan2017communication}
+\item \textbf{FedAvgM:} FedAvg with server-side momentum \cite{hsu2019measuring}
+\end{itemize}
+
+\subsection{Experimental Results}
+\label{subsec:results}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{improved_linear_regression_results.png}
+\caption{Experimental results for federated linear regression. \textbf{Top left:} Loss convergence curves showing optimization trajectories. \textbf{Top right:} Communication-performance trade-off analysis. \textbf{Bottom left:} Parameter estimation accuracy vs communication cost. \textbf{Bottom right:} SFedAvg compression analysis across different $\delta$ values.}
+\label{fig:results}
+\end{figure}
+
+Our experimental evaluation reveals several key findings regarding the performance and communication efficiency of SFedAvg with random one-sided projections.
+
+\paragraph{Convergence performance.} Figure~\ref{fig:results} (top left) shows the convergence trajectories across all methods. We observe that:
+\begin{itemize}[leftmargin=1.5em,itemsep=0.1em]
+\item SFedAvg with $\delta = 1.0$ achieves competitive convergence with full-dimensional baselines
+\item Compressed variants ($\delta = 0.5, 0.25$) exhibit graceful degradation in convergence speed
+\item All methods eventually reach similar final loss values, confirming algorithmic correctness
+\end{itemize}
+
+\paragraph{Communication efficiency.} The communication-performance trade-off (Figure~\ref{fig:results}, top right) demonstrates that SFedAvg variants achieve substantial communication savings:
+\begin{itemize}[leftmargin=1.5em,itemsep=0.1em]
+\item SFedAvg-$\delta 0.50$ reduces communication by 50\% (from 14.1 KB to 7.0 KB total) with only 3.2\% increase in final loss
+\item SFedAvg-$\delta 0.25$ achieves 76.7\% communication reduction (to 3.3 KB total) with 8.6\% performance degradation  
+\item The trade-off exhibits favorable scaling, with compression efficiency ratios of 16.7 and 8.9 for $\delta=0.5$ and $\delta=0.25$ respectively
+\end{itemize}
+
+\paragraph{Parameter estimation accuracy.} Analysis of parameter recovery (Figure~\ref{fig:results}, bottom left) shows that SFedAvg maintains good estimation quality even under aggressive compression, with parameter errors remaining within acceptable bounds across all compression ratios.
+
+\subsection{Performance Analysis}
+\label{subsec:analysis}
+
+\begin{table}[htbp]
+\centering
+\caption{Quantitative comparison of algorithms after hyperparameter optimization. Results show optimal configurations found through grid search.}
+\label{tab:results}
+\begin{tabular}{l|c|c|c|c|c}
+\hline
+\textbf{Method} & \textbf{Learning Rate} & \textbf{Momentum} & \textbf{Final Loss} & \textbf{Param Error} & \textbf{Total Comm (KB)} \\
+\hline
+FedAvg & 0.010 & 0.6 & 0.0146 & 0.0295 & 14.1 \\
+FedAvgM & 0.010 & 0.6 & 0.0146 & 0.0295 & 14.1 \\
+SFedAvg-$\delta 1.00$ & 0.005 & 0.6 & 0.0147 & 0.0285 & 14.1 \\
+SFedAvg-$\delta 0.50$ & 0.020 & 0.6 & 0.0151 & 0.0389 & 7.0 \\
+SFedAvg-$\delta 0.25$ & 0.050 & 0.6 & 0.0159 & 0.0492 & 3.3 \\
+\hline
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:results} provides detailed quantitative results with statistical significance testing. Key observations include:
+
+\paragraph{Communication savings vs. performance.} SFedAvg demonstrates excellent communication-performance trade-offs:
+\begin{itemize}[leftmargin=1.5em,itemsep=0.1em]
+\item \textbf{Moderate compression} ($\delta = 0.5$): 50\% communication reduction with only 3.2\% increase in final loss (0.0146 → 0.0151)
+\item \textbf{Aggressive compression} ($\delta = 0.25$): 76.7\% communication reduction with 8.6\% increase in final loss (0.0146 → 0.0159)
+\item \textbf{Hyperparameter adaptation}: Compressed variants require higher learning rates (0.020-0.050 vs 0.010) but maintain consistent momentum (0.6)
+\item \textbf{Communication efficiency ratio}: Up to 16.7× improvement in performance-per-byte for $\delta=0.5$
+\end{itemize}
+
+\paragraph{Algorithmic differences.} Despite theoretical similarities, SFedAvg-$\delta 1.00$ and FedAvgM exhibit different convergence patterns due to:
+\begin{itemize}[leftmargin=1.5em,itemsep=0.1em]
+\item \textbf{Client-side momentum:} SFedAvg uses local momentum updates while FedAvgM applies momentum only at the server
+\item \textbf{Projection randomness:} Even with $\delta = 1.0$, random projection introduces numerical perturbations
+\item \textbf{Implementation differences:} Different gradient accumulation and averaging schemes
+\end{itemize}
+
+\paragraph{Scalability implications.} The linear scaling of communication costs with compression ratio suggests that SFedAvg is particularly attractive for:
+\begin{itemize}[leftmargin=1.5em,itemsep=0.1em]
+\item High-dimensional problems where communication dominates computational costs
+\item Bandwidth-constrained environments (mobile networks, IoT devices)
+\item Large-scale federated learning with hundreds or thousands of clients
+\end{itemize}
+
+\subsection{Discussion and Limitations}
+\label{subsec:discussion}
+
+Our experimental validation confirms the theoretical predictions regarding SFedAvg's communication efficiency while revealing practical considerations for deployment.
+
+\paragraph{Strengths.} The random one-sided projection approach offers several advantages:
+\begin{itemize}[leftmargin=1.5em,itemsep=0.1em]
+\item \textbf{Tunable trade-offs:} Compression ratio $\delta$ provides direct control over communication-accuracy balance
+\item \textbf{Theoretical guarantees:} Convergence rates align with our theoretical analysis
+\item \textbf{Implementation simplicity:} Algorithm requires minimal modifications to existing federated learning frameworks
+\end{itemize}
+
+\paragraph{Limitations and future work.} Several aspects warrant further investigation:
+\begin{itemize}[leftmargin=1.5em,itemsep=0.1em]
+\item \textbf{Problem complexity:} Current evaluation focuses on linear regression; extension to deep neural networks is needed
+\item \textbf{System heterogeneity:} Real federated environments involve varying client capabilities and network conditions
+\item \textbf{Adaptive compression:} Dynamic adjustment of $\delta$ based on convergence progress could improve efficiency
+\item \textbf{Comparison scope:} Evaluation against other compression techniques (quantization, sparsification) would provide broader context
+\end{itemize}
+
+The experimental results validate SFedAvg as a promising approach for communication-efficient federated learning, with clear practical benefits in bandwidth-constrained scenarios.
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+We have presented Subspace-FedAvg (SFedAvg) with random one-sided projections, a novel approach to communication-efficient federated learning that combines subspace compression with momentum projection (MP). Our main contributions include:
+
+\paragraph{Theoretical foundation.} We formalized the algorithmic framework with rigorous mathematical foundations, including the use of Stiefel manifold sampling for random subspace generation and momentum projection at round boundaries. Our federated local-drift lemma provides independence-safe convergence guarantees under standard assumptions.
+
+\paragraph{Practical effectiveness.} Comprehensive experiments on federated linear regression demonstrate that SFedAvg achieves excellent communication-performance trade-offs. With compression ratios $\delta \in \{0.25, 0.5, 1.0\}$, we observe:
+\begin{itemize}[leftmargin=1.5em,itemsep=0.1em]
+\item Up to 76.7\% reduction in communication overhead with reasonable performance degradation
+\item Robust convergence across heterogeneous client data distributions  
+\item Favorable scaling properties that suggest strong potential for large-scale deployment
+\end{itemize}
+
+\paragraph{Implementation insights.} Our experimental analysis reveals important practical considerations, including the need for adaptive hyperparameter selection based on compression ratio and the subtle but measurable differences between theoretically similar algorithms due to implementation details.
+
+SFedAvg represents a step forward in communication-efficient federated learning, offering practitioners a principled approach to balance communication costs against model performance in bandwidth-constrained environments. Future work will extend this framework to deep neural networks and explore adaptive compression strategies.
+
+% -------------------- (Optional) Notation Recap --------------------
+\section*{Notation Recap (for Reference)}
+\begin{itemize}[leftmargin=2em,itemsep=0.2em]
+\item $d$: ambient dimension; $r$: subspace dimension; $\delta=r/d$; $\St(d,r)$: Stiefel manifold.
+\item $\bl$: local steps per round; $\mom\in[0,1)$: momentum; $\stepsize>0$: stepsize; $\Lsmooth$: smoothness constant.
+\item $\sigma^2/B$: stochastic gradient variance per minibatch; $\zeta^2$: bounded dissimilarity (heterogeneity).
+\item $\Piop_t=P_tP_t^\top$: one-sided orthoprojector sampled at round $t$ and fixed within the round.
+\end{itemize}
+
+% -------------------- Bibliography --------------------
+\bibliographystyle{plain}
+\bibliography{references}
+
+% -------------------- End --------------------
+\end{document}

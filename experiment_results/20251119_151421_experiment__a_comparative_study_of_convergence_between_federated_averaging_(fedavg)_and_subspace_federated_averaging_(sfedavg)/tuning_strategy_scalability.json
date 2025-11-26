@@ -1,0 +1,55 @@
+{
+  "selected_parameters": ["subspace_ratio", "feature_multiplier", "client_frac"],
+  "selection_rationale": "With many clients and higher-dimensional features, the subspace_ratio (r/d) controls communication and drift via projection size; feature_multiplier determines the dimensionality expansion, affecting optimization difficulty and per-round communication; client_frac sets the number of participating clients, balancing variance reduction against bandwidth and aggregation stability.",
+  "configs": [
+    {
+      "subspace_ratio": 0.03,
+      "feature_multiplier": 2.0,
+      "client_frac": 0.10,
+      "rationale": "Smaller r/d to strongly filter updates under doubled feature dimension while keeping participation modest."
+    },
+    {
+      "subspace_ratio": 0.05,
+      "feature_multiplier": 2.5,
+      "client_frac": 0.10,
+      "rationale": "Scenario baseline-like r/d with more aggressive feature expansion to test projection’s stability in higher d."
+    },
+    {
+      "subspace_ratio": 0.08,
+      "feature_multiplier": 2.0,
+      "client_frac": 0.10,
+      "rationale": "Moderate r/d to retain more signal at 2x features, probing faster convergence vs drift."
+    },
+    {
+      "subspace_ratio": 0.05,
+      "feature_multiplier": 3.0,
+      "client_frac": 0.15,
+      "rationale": "Larger feature expansion with slightly higher client participation to reduce gradient variance."
+    },
+    {
+      "subspace_ratio": 0.10,
+      "feature_multiplier": 2.0,
+      "client_frac": 0.05,
+      "rationale": "Higher r/d for more signal retention when very few clients participate per round."
+    },
+    {
+      "subspace_ratio": 0.07,
+      "feature_multiplier": 1.5,
+      "client_frac": 0.10,
+      "rationale": "Moderate projection with modest feature growth as a conservative stability–speed trade-off."
+    },
+    {
+      "subspace_ratio": 0.04,
+      "feature_multiplier": 3.0,
+      "client_frac": 0.10,
+      "rationale": "Aggressive projection (smaller r/d) for very high dimensionality to cap communication and drift."
+    },
+    {
+      "subspace_ratio": 0.06,
+      "feature_multiplier": 2.5,
+      "client_frac": 0.20,
+      "rationale": "Balanced r/d with higher participation to accelerate averaging and reduce stochasticity in large-N settings."
+    }
+  ],
+  "expected_improvement": "We expect SFedAvg to achieve more stable convergence and improved test accuracy in high-dimensional, many-client settings by using moderate subspace_ratio (≈0.05–0.08), feature_multiplier in the 1.5–3.0 range, and client_frac between 0.10–0.20, thereby controlling communication while mitigating drift and variance."
+}

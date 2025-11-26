@@ -1,0 +1,42 @@
+\documentclass{article}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{amsmath}
+
+\begin{document}
+
+\begin{algorithm}
+\caption{SFedAvg-Golore: One-Sided Random Subspace + Momentum Projection (MP)}
+\label{alg:sfedavg-golore}
+\begin{algorithmic}[1]
+\State \textbf{Input:} rounds $T$, local steps $\tau$, client fraction $C$, stepsize $\eta$, momentum $\mu$, batch size $B$
+\State \textbf{Server initialization:} $\theta^{0}$
+\For{$t = 0, 1, \ldots, T-1$} \Comment{Round $t$}
+    \State Sample one-sided subspace: draw $P_{t} \in \operatorname{St}(d,r)$; set $\Pi_{t} \gets P_{t}P_{t}^{\top}$ \Comment{(held fixed within round)}
+    \State Sample client subset $S_{t}$ with $|S_{t}| = m \approx CN$
+    \For{$i \in S_{t}$}
+        \State Send $(\theta^{t}, \Pi_{t})$ to client $i$
+        \State Receive model delta $\Delta_{i}^{t} \gets \textsc{ClientUpdate}(i;\theta^{t},\Pi_{t},\tau,\eta,\mu,B)$
+    \EndFor
+    \State \textbf{Aggregation:} $\theta^{t+1} \gets \theta^{t} + \frac{1}{m}\sum_{i \in S_{t}}\Delta_{i}^{t}$
+\EndFor
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}
+\caption{ClientUpdate$(i;\theta^{t},\Pi_{t},\tau,\eta,\mu,B)$ with MP at block start}
+\label{alg:client-update}
+\begin{algorithmic}[1]
+\State \textbf{Input on client $i$:} server model $\theta^{t}$, projector $\Pi_{t}$, local steps $\tau$, stepsize $\eta$, momentum $\mu$, batch size $B$
+\State \textbf{(Optional MP)} If a momentum state $v^{\text{prev}}_{i}$ is stored from the previous round, set $v^{0}_{i} \gets \Pi_{t}\,v^{\text{prev}}_{i}$; else set $v^{0}_{i} \gets 0$
+\State $\theta_{i,0} \gets \theta^{t}$
+\For{$s = 0, 1, \ldots, \tau-1$}
+    \State Sample a minibatch $\xi_{i,s}$ of size $B$ and compute $g_{i,s} \gets \nabla F_{i}(\theta_{i,s};\xi_{i,s})$
+    \State $v_{i,s+1} \gets \mu\,v_{i,s} + \Pi_{t}\,g_{i,s}$ \Comment{one-sided projected momentum}
+    \State $\theta_{i,s+1} \gets \theta_{i,s} - \eta\,v_{i,s+1}$
+\EndFor
+\State $\Delta_{i}^{t} \gets \theta_{i,\tau} - \theta^{t}$ and store $v^{\text{prev}}_{i} \gets v_{i,\tau}$
+\end{algorithmic}
+\end{algorithm}
+
+\end{document}

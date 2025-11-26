@@ -1,0 +1,25 @@
+# Title: Experiment: A Comparative Study of Convergence between Federated Averaging (FedAvg) and Subspace Federated Averaging (SFedAvg)
+# Experiment description: Compare the convergence behavior of Federated Averaging (FedAvg) and Subspace Federated Averaging (SFedAvg) on a standard dataset (e.g., MNIST or CIFAR-10) under identical settings. Measure metrics such as training loss, test accuracy, and communication efficiency over multiple rounds of training.
+# Timestamp: 20251119_151421
+
+## Experiment Log
+
+Validation: LOGIC_VALIDATION_PASSED
+
+Checks:
+- Algorithm Fidelity:
+  * Server initializes θ^0 from W_init.
+  * For each round t, SFedAvg samples P_t ∈ St(d,r) and sets Π_t = P_t P_t^⊤, held fixed within the round.
+  * Client subset S_t is sampled with size m ≈ C·N.
+  * Clients receive (θ^t, Π_t) (Π_t None for FedAvg) and run ClientUpdate; server aggregates θ^{t+1} = θ^t + (1/m) ∑ Δ_i^t.
+- ClientUpdate implementation:
+  * Sets θ_{i,0} ← θ^t.
+  * Momentum Projection (MP) at block start: v_i^0 ← Π_t v_i^{prev} if available else 0 (only for SFedAvg).
+  * For s=0..τ-1: samples minibatch, computes true gradient from data, updates v_{i,s+1} = μ v_{i,s} + Π_t g_{i,s} (SFedAvg) and θ_{i,s+1} = θ_{i,s} − η v_{i,s+1}; FedAvg uses plain SGD θ_{i,s+1} = θ_{i,s} − η g_{i,s}.
+  * Returns Δ_i^t = θ_{i,τ} − θ^t and stores v_i^{prev} = v_{i,τ} (zeros for FedAvg).
+- Metrics:
+  * Train loss and test accuracy are computed each round from actual predictions and labels.
+  * Communication cost tracks cumulative MB per round, including sending θ^t and Π_t (SFedAvg) and receiving full Δ_i^t.
+
+Conclusion: Implementation matches the provided pseudocode for both FedAvg and SFedAvg with MP.
+

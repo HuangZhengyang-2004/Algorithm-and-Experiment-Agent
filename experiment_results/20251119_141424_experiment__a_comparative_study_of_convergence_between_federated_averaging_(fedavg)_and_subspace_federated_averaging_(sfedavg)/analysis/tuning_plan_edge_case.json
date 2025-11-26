@@ -1,0 +1,55 @@
+{
+  "selected_parameters": ["local_steps", "lr", "momentum"],
+  "selection_rationale": "In the deep local training, tiny participation regime, local_steps directly drives client drift, learning rate controls update stability under long local trajectories, and momentum provides temporal smoothing that can mitigate drift—especially when combined with SFedAvg’s projected momentum.",
+  "configs": [
+    {
+      "local_steps": 25,
+      "lr": 0.08,
+      "momentum": 0.95,
+      "rationale": "Scenario baseline to establish reference behavior under extreme local depth and strong momentum."
+    },
+    {
+      "local_steps": 35,
+      "lr": 0.06,
+      "momentum": 0.95,
+      "rationale": "Deeper local blocks with reduced LR to probe stability while retaining strong momentum smoothing."
+    },
+    {
+      "local_steps": 35,
+      "lr": 0.08,
+      "momentum": 0.9,
+      "rationale": "Stress-test drift with high local depth and slightly weaker momentum to assess sensitivity to smoothing strength."
+    },
+    {
+      "local_steps": 20,
+      "lr": 0.10,
+      "momentum": 0.9,
+      "rationale": "Shorter local blocks with higher LR to examine trade-off between speed and drift control."
+    },
+    {
+      "local_steps": 15,
+      "lr": 0.12,
+      "momentum": 0.9,
+      "rationale": "Further reduce local depth while increasing LR to test whether fewer local steps enable stable acceleration."
+    },
+    {
+      "local_steps": 25,
+      "lr": 0.06,
+      "momentum": 0.95,
+      "rationale": "Lower LR with strong momentum at the same local depth to reduce oscillations and drift."
+    },
+    {
+      "local_steps": 25,
+      "lr": 0.08,
+      "momentum": 0.9,
+      "rationale": "Same LR and depth with reduced momentum to isolate momentum’s role in drift mitigation."
+    },
+    {
+      "local_steps": 30,
+      "lr": 0.08,
+      "momentum": 0.95,
+      "rationale": "Slightly deeper local training at baseline LR with strong momentum to assess robustness margin."
+    }
+  ],
+  "expected_improvement": "Relative to baseline, configurations with reduced local_steps or lower LR (while maintaining high momentum) should show smoother loss, reduced drift indicators, and equal or higher test accuracy—SFedAvg is expected to benefit most from strong momentum and moderate LR under tiny participation."
+}

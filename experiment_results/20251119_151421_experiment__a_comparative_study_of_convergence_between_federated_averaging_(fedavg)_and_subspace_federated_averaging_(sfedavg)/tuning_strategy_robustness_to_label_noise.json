@@ -1,0 +1,55 @@
+{
+  "selected_parameters": ["subspace_ratio", "lr", "batch_size"],
+  "selection_rationale": "Under label noise, the one-sided projector dimension (subspace_ratio r/d) controls how much gradient signal is retained versus filtered; the learning rate (lr) directly affects stability of updates in the presence of corrupted labels; batch_size determines gradient variance reduction via averaging, improving robustness against label flips.",
+  "configs": [
+    {
+      "subspace_ratio": 0.10,
+      "lr": 0.12,
+      "batch_size": 64,
+      "rationale": "Strong projection (smaller r/d) with moderate lr and a larger batch to aggressively filter noisy components while maintaining learning speed."
+    },
+    {
+      "subspace_ratio": 0.15,
+      "lr": 0.10,
+      "batch_size": 64,
+      "rationale": "Slightly larger subspace with conservative lr to enhance stability; batch_size 64 reduces gradient variance from label noise."
+    },
+    {
+      "subspace_ratio": 0.20,
+      "lr": 0.12,
+      "batch_size": 128,
+      "rationale": "Moderate projection with a bigger batch to counteract noise and stabilize updates; keeps lr moderate for faster convergence."
+    },
+    {
+      "subspace_ratio": 0.25,
+      "lr": 0.15,
+      "batch_size": 64,
+      "rationale": "Baseline-like r/d but slightly reduced lr relative to default, plus larger batch to test if projection at standard dimension remains robust."
+    },
+    {
+      "subspace_ratio": 0.30,
+      "lr": 0.12,
+      "batch_size": 96,
+      "rationale": "Higher r/d to retain more signal, balanced by moderate lr and enlarged batch to keep noisy gradients in check."
+    },
+    {
+      "subspace_ratio": 0.10,
+      "lr": 0.15,
+      "batch_size": 128,
+      "rationale": "Aggressive filtering with small r/d paired with higher lr, compensated by very large batch to dampen noise-induced instability."
+    },
+    {
+      "subspace_ratio": 0.35,
+      "lr": 0.10,
+      "batch_size": 64,
+      "rationale": "Large subspace approaching full space but with conservative lr to avoid amplifying noise; batch 64 provides variance reduction."
+    },
+    {
+      "subspace_ratio": 0.20,
+      "lr": 0.08,
+      "batch_size": 96,
+      "rationale": "Very conservative lr for maximum stability under noise, with moderate r/d and larger batch to ensure steady progress."
+    }
+  ],
+  "expected_improvement": "We expect lower training loss and higher test accuracy under 20% label flips by reducing lr (≈0.10–0.12), increasing batch_size (64–128), and selecting a moderate projection (subspace_ratio≈0.15–0.30), yielding more stable gradients and better robustness for SFedAvg."
+}

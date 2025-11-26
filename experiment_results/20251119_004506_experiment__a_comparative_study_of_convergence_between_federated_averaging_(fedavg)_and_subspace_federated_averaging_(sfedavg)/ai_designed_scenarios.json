@@ -1,0 +1,135 @@
+{
+  "scenarios": [
+    {
+      "name": "Non-IID Class Skew (Dirichlet α=0.1)",
+      "description": "Evaluate convergence of FedAvg vs SFedAvg under strong client heterogeneity induced by class-imbalanced partitions.",
+      "parameters": {
+        "--rounds": 50,
+        "--local_steps": 5,
+        "--client_fraction": 0.2,
+        "--stepsize": 0.2,
+        "--momentum": 0.9,
+        "--batch_size": 64,
+        "--num_clients": 50,
+        "--subspace_dim": 64,
+        "--seed": 1,
+        "--dataset": "mnist_or_synth"
+      },
+      "dataset": "Create non-IID client splits by sampling client label distributions from a Dirichlet with α=0.1; each client primarily sees a few classes.",
+      "expected_insight": "SFedAvg should exhibit more stable convergence and reduced drift compared to FedAvg, achieving better loss and accuracy at similar or lower communication costs due to subspace filtering.",
+      "metrics": [
+        "FedAvg/train_loss",
+        "FedAvg/test_accuracy",
+        "FedAvg/communication_bytes",
+        "SFedAvg/train_loss",
+        "SFedAvg/test_accuracy",
+        "SFedAvg/communication_bytes"
+      ]
+    },
+    {
+      "name": "Robustness to Label Noise (20% flips)",
+      "description": "Test sensitivity of both algorithms to noisy labels with momentum projection mitigating variance.",
+      "parameters": {
+        "--rounds": 40,
+        "--local_steps": 4,
+        "--client_fraction": 0.3,
+        "--stepsize": 0.15,
+        "--momentum": 0.9,
+        "--batch_size": 128,
+        "--num_clients": 30,
+        "--subspace_dim": 48,
+        "--seed": 2,
+        "--dataset": "mnist_or_synth"
+      },
+      "dataset": "Inject 20% symmetric label noise uniformly across clients; maintain original feature distribution.",
+      "expected_insight": "SFedAvg should be more robust due to one-sided projection that dampens high-variance gradient components, leading to lower loss and higher accuracy than FedAvg in noisy conditions.",
+      "metrics": [
+        "FedAvg/train_loss",
+        "FedAvg/test_accuracy",
+        "FedAvg/communication_bytes",
+        "SFedAvg/train_loss",
+        "SFedAvg/test_accuracy",
+        "SFedAvg/communication_bytes"
+      ]
+    },
+    {
+      "name": "Scalability: Many Clients, Small Client Fraction",
+      "description": "Assess behavior as the system scales to many clients with few selected per round, stressing aggregation and communication.",
+      "parameters": {
+        "--rounds": 60,
+        "--local_steps": 3,
+        "--client_fraction": 0.05,
+        "--stepsize": 0.12,
+        "--momentum": 0.9,
+        "--batch_size": 64,
+        "--num_clients": 200,
+        "--subspace_dim": 32,
+        "--seed": 3,
+        "--dataset": "mnist_or_synth"
+      },
+      "dataset": "Uniform splits over a larger client pool; optional mild heterogeneity by varying per-client sample sizes.",
+      "expected_insight": "SFedAvg should reduce per-round communication growth while maintaining or accelerating convergence compared to FedAvg when only a small subset participates.",
+      "metrics": [
+        "FedAvg/train_loss",
+        "FedAvg/test_accuracy",
+        "FedAvg/communication_bytes",
+        "SFedAvg/train_loss",
+        "SFedAvg/test_accuracy",
+        "SFedAvg/communication_bytes"
+      ]
+    },
+    {
+      "name": "Hyperparameter Sensitivity: r and μ Ablation",
+      "description": "Systematically study the effect of subspace dimension r and momentum μ on convergence speed and stability.",
+      "parameters": {
+        "--rounds": 45,
+        "--local_steps": 4,
+        "--client_fraction": 0.25,
+        "--stepsize": 0.18,
+        "--momentum": 0.0,
+        "--batch_size": 128,
+        "--num_clients": 40,
+        "--subspace_dim": 16,
+        "--seed": 4,
+        "--dataset": "mnist_or_synth"
+      },
+      "dataset": "Use a standard iid split; run multiple separate executions varying --subspace_dim ∈ {16, 64, 256} and --momentum ∈ {0.0, 0.9}.",
+      "expected_insight": "Larger r typically speeds convergence but increases communication; nonzero μ reduces oscillations and improves accuracy, while very small r may underfit.",
+      "metrics": [
+        "FedAvg/train_loss",
+        "FedAvg/test_accuracy",
+        "FedAvg/communication_bytes",
+        "SFedAvg/train_loss",
+        "SFedAvg/test_accuracy",
+        "SFedAvg/communication_bytes"
+      ]
+    },
+    {
+      "name": "Edge Cases: Extreme Local Steps and Minimal Subspace",
+      "description": "Reveal failure modes under high local drift and aggressive projection.",
+      "parameters": {
+        "--rounds": 30,
+        "--local_steps": 20,
+        "--client_fraction": 0.1,
+        "--stepsize": 0.1,
+        "--momentum": 0.9,
+        "--batch_size": 64,
+        "--num_clients": 25,
+        "--subspace_dim": 1,
+        "--seed": 5,
+        "--dataset": "mnist_or_synth"
+      },
+      "dataset": "Strong local computation per client on iid splits; set subspace_dim=1 to maximize projection aggressiveness.",
+      "expected_insight": "FedAvg may suffer from client drift with high τ, whereas SFedAvg can mitigate drift via projection but may slow learning when r is too small; communication for SFedAvg increases only with r.",
+      "metrics": [
+        "FedAvg/train_loss",
+        "FedAvg/test_accuracy",
+        "FedAvg/communication_bytes",
+        "SFedAvg/train_loss",
+        "SFedAvg/test_accuracy",
+        "SFedAvg/communication_bytes"
+      ]
+    }
+  ],
+  "rationale": "The scenarios are anchored in the algorithm title and pseudocode: they isolate effects of subspace projection Π_t, momentum projection at block start, client sampling, and aggregation. Together they probe heterogeneity (Dirichlet skew), robustness (label noise), scalability (many clients, small fraction), hyperparameter sensitivity (r, μ ablation), and edge cases (extreme τ and minimal r), yielding a comprehensive view of convergence and communication trade-offs between FedAvg and SFedAvg."
+}

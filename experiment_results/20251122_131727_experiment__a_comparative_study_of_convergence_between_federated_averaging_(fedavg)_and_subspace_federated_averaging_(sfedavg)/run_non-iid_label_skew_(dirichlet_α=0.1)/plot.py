@@ -1,0 +1,91 @@
+# Plotting for SFedAvg vs FedAvg results
+
+import matplotlib.pyplot as plt
+import json
+import os
+import argparse
+import numpy as np
+
+def load_run_metrics(run_baseline_dir):
+    json_path = os.path.join(run_baseline_dir, "final_info.json")
+    if not os.path.exists(json_path):
+        return None
+    with open(json_path, "r") as f:
+        data = json.load(f)
+    return data
+
+def plot_metrics_across_runs(metric_name, runs_data, labels_map, save_path):
+    plt.style.use('seaborn-v0_8-whitegrid')
+    fig, ax = plt.subplots(1, 1, figsize=(10, 6))
+
+    colors = plt.cm.tab10(np.linspace(0, 1, max(1, len(runs_data))))
+    for i, (run_dir, metrics) in enumerate(runs_data.items()):
+        if metric_name not in metrics:
+            continue
+        means = np.array(metrics[metric_name]["means"], dtype=float)
+        stds = np.array(metrics[metric_name]["stds"], dtype=float)
+        iters = np.arange(len(means))
+        label = labels_map.get(run_dir, os.path.basename(os.path.dirname(run_dir)))
+        ax.plot(iters, means, label=label, color=colors[i], linewidth=2)
+        if stds.size == means.size and np.any(stds > 0):
+            ax.fill_between(iters, means - stds, means + stds, alpha=0.2, color=colors[i])
+
+    ax.set_xlabel('Rounds', fontsize=12)
+    ax.set_ylabel(metric_name.replace('_', ' ').title(), fontsize=12)
+    ax.set_title(f'Comparison: {metric_name}', fontsize=14)
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    plt.close()
+
+def main():
+    parser = argparse.ArgumentParser(description="Plot SFedAvg vs FedAvg metrics from baseline results")
+    parser.add_argument('--out_dir', type=str, required=True, help='Directory to save plots')
+    args = parser.parse_args()
+
+    os.makedirs(args.out_dir, exist_ok=True)
+
+    # Map run baseline directories to human-readable labels
+    # Update this dictionary with your actual run paths
+    labels = {
+        # Example entries; edit as needed:
+        # "test_run/baseline": "Digits - FedAvg & SFedAvg"
+    }
+
+    # Load metrics for all runs
+    runs_data = {}
+    for run_baseline_dir, _label in labels.items():
+        data = load_run_metrics(run_baseline_dir)
+        if data is not None:
+            runs_data[run_baseline_dir] = data
+
+    if not runs_data:
+        # No runs found; create an empty placeholder plot
+        plt.style.use('seaborn-v0_8-whitegrid')
+        fig, ax = plt.subplots(1, 1, figsize=(10, 6))
+        ax.set_title('No runs found. Please update labels in plot.py.', fontsize=14)
+        ax.set_xlabel('Rounds', fontsize=12)
+        ax.set_ylabel('Metric Value', fontsize=12)
+        ax.grid(True, alpha=0.3)
+        out_path = os.path.join(args.out_dir, "empty.png")
+        plt.tight_layout()
+        plt.savefig(out_path, dpi=300, bbox_inches='tight')
+        plt.close()
+        print(f"Saved placeholder plot to: {out_path}")
+        return
+
+    # Gather union of metric names across runs
+    metric_names = set()
+    for metrics in runs_data.values():
+        metric_names.update(metrics.keys())
+
+    # Plot each metric across runs
+    for metric_name in sorted(metric_names):
+        save_path = os.path.join(args.out_dir, f"{metric_name}.png")
+        plot_metrics_across_runs(metric_name, runs_data, labels_map=labels, save_path=save_path)
+        print(f"Saved plot: {save_path}")
+
+if __name__ == "__main__":
+    main()

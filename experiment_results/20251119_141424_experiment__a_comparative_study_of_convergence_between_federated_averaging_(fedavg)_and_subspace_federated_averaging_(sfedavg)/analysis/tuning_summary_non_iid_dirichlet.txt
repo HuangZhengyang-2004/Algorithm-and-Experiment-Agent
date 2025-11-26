@@ -1,0 +1,14 @@
+Best Configuration:
+- Config 4 (lr=0.1, momentum=0.9, local_steps=10) achieved the strongest overall performance for the scenario focus (SFedAvg stability), with SFedAvg final test accuracy 0.76875 and FedAvg 0.7925.
+
+Performance Improvement:
+- Versus baseline SFedAvg (0.7475), Config 4 improves final accuracy by +2.84% ((0.76875-0.7475)/0.7475).
+- Versus baseline FedAvg (0.79), Config 4 improves final accuracy by +0.32% ((0.7925-0.79)/0.79).
+
+Parameter Insights:
+- Increasing local_steps from 5 to 10 consistently boosts SFedAvg by mitigating client drift under label skew.
+- Momentum magnitude strongly interacts with projection; too low (0.5) helps FedAvg but often degrades SFedAvg, while strong momentum (0.9) plus longer local blocks stabilizes SFedAvg.
+- Very high lr (0.2) accelerates convergence but does not improve SFedAvg’s final accuracy; short blocks with very high momentum (0.95) are stable yet offer limited gains.
+
+Recommendation:
+- For non-IID label skew, use lr=0.1, momentum=0.9, local_steps=10 to prioritize SFedAvg stability and accuracy while maintaining solid FedAvg performance.

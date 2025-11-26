@@ -1,0 +1,19 @@
+1) Best Configuration
+- Config 3 achieved the best overall performance for SFedAvg with lr=0.10, mu=0.95, subspace_frac=0.25.
+- It reached the highest final test accuracy for SFedAvg (96.11%) while keeping the same communication budget as the baseline (r/D=0.25).
+- Training loss also ended lower than baseline, indicating more effective optimization without extra communication.
+
+2) Performance Improvement
+- Final SFedAvg test accuracy improved from 94.17% (baseline) to 96.11% (+1.94 percentage points, +2.06% relative).
+- Final SFedAvg train loss decreased from 0.1776 to 0.1660 (~6.5% reduction).
+- Communication cost remained unchanged versus baseline SFedAvg because subspace_frac stayed at 0.25.
+
+3) Parameter Insights
+- Momentum (mu) had the strongest impact on final accuracy and stability: increasing mu to 0.95 improved SFedAvg accuracy to match FedAvg, without extra communication.
+- Subspace size (subspace_frac) trades accuracy vs. communication: 0.10 harmed accuracy notably (final ~91.94%) but cut comm by ~75%, while 0.50 matched the best accuracy but doubled comm.
+- Learning rate mainly affected early-round speed: 0.20 accelerated convergence but did not surpass the best final accuracy achieved with higher momentum.
+
+4) Recommendation
+- Recommended settings for IID baseline: lr=0.10, mu=0.95, subspace_frac=0.25 (best accuracy at the same communication cost as baseline).
+- If communication budget allows faster progress, lr=0.15, mu=0.90, subspace_frac=0.35 offers similar final accuracy with higher comm and slightly faster loss decrease.
+- Avoid very small subspaces (e.g., 0.10) unless communication is the primary constraint, as they significantly reduce accuracy.

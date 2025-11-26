@@ -1,0 +1,17 @@
+Best Configuration:
+The best-performing configuration is SFedAvg with --lr=0.12, --mu=0.85, --subspace_dim=20.
+This setup consistently achieved the highest final test accuracy (≈0.8415) and the lowest final train loss (≈0.7298).
+It balances a larger subspace with moderate momentum, improving stability and convergence speed.
+
+Performance Improvement:
+Compared to baseline (final accuracy ≈0.7485, final loss ≈1.2630), the best config improves accuracy by ≈12.4% relative and reduces final train loss by ≈42.2%.
+Note that communication per round increases (uplink +800 vs +400; downlink +3600 vs +2400), so gains come with higher communication cost.
+
+Parameter Insights:
+Learning rate had a strong positive impact on speed and final accuracy up to 0.12 before instability (when paired with appropriate μ and r).
+Subspace dimension r strongly influenced performance: larger r (12–20) outperformed small r (e.g., r=1) which severely degraded accuracy.
+Momentum μ requires balance: very high μ (0.99) with small r underperformed; moderate μ (0.85–0.9) with larger r stabilized and accelerated convergence.
+
+Recommendation:
+Use SFedAvg with --lr=0.12, --mu=0.85, --subspace_dim=20 for this IID baseline scenario, keeping other parameters at defaults.
+If communication budget is tight, a compromise like --lr=0.08, --mu=0.95, --subspace_dim=12 achieves strong accuracy with lower communication than r=20.

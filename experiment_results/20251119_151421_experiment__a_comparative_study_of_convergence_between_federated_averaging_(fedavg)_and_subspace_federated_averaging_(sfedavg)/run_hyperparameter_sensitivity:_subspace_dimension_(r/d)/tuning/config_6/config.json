@@ -1,0 +1,9 @@
+{
+  "parameters": {
+    "subspace_ratio": 0.1,
+    "lr": 0.12,
+    "client_frac": 0.3
+  },
+  "config_id": "config_6",
+  "scenario": "hyperparameter_sensitivity:_subspace_dimension_(r/d)"
+}
