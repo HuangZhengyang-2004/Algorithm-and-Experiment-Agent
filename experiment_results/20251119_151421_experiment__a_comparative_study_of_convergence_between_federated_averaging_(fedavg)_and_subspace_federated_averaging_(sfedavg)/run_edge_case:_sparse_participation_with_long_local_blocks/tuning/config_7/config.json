@@ -1,9 +1,0 @@
-{
-  "parameters": {
-    "subspace_ratio": 0.05,
-    "lr": 0.12,
-    "client_frac": 0.3
-  },
-  "config_id": "config_7",
-  "scenario": "edge_case:_sparse_participation_with_long_local_blocks"
-}

@@ -1,9 +1,0 @@
-{
-  "parameters": {
-    "subspace_ratio": 0.06,
-    "feature_multiplier": 2.5,
-    "client_frac": 0.2
-  },
-  "config_id": "config_8",
-  "scenario": "scalability:_many_clients_and_higher_dimensional_features"
-}

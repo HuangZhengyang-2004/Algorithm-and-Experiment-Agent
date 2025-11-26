@@ -1,9 +1,0 @@
-{
-  "parameters": {
-    "subspace_ratio": 0.1,
-    "lr": 0.15,
-    "local_steps": 4
-  },
-  "config_id": "config_1",
-  "scenario": "non-iid_label_skew_(client_drift_stress_test)"
-}
