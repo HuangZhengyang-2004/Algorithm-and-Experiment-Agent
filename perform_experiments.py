@@ -2248,400 +2248,152 @@ IMPORTANT:
         return None
 
 
-def prepare_tuning_code_for_scenario(folder_name, scenario_name, base_params, tuning_configs, coder):
-    """
-    让 AI 修改 experiment.py，使其支持批量参数测试（一次运行完成所有配置）
-    
-    核心思路：在 experiment.py 内部定义参数网格，循环测试所有配置
-    """
-    print(f"\n🔧 让 AI 修改 experiment.py 以支持批量参数测试...")
-    
-    # 生成参数网格配置
-    param_grid_json = json.dumps(tuning_configs, indent=2)
-    
-    preparation_prompt = f"""Please modify experiment.py to support BATCH hyperparameter tuning.
-
-# Current Approach (INCORRECT)
-The current code requires running the script multiple times with different command-line arguments.
-
-# Required Approach (CORRECT)
-The code should test ALL parameter configurations in a SINGLE run.
-
-# Parameter Configurations to Test
-{param_grid_json}
-
-# Implementation Requirements
-
-1. **Add parameter grid inside the code:**
-```python
-# After argparse, add parameter grid
-parser.add_argument('--enable_tuning', action='store_true', help='Enable batch parameter tuning')
-args = parser.parse_args()
-
-if args.enable_tuning:
-    # Define parameter configurations to test
-    tuning_configs = {param_grid_json}
-    
-    # Create tuning subdirectory
-    tuning_dir = os.path.join(args.out_dir, "tuning")
-    os.makedirs(tuning_dir, exist_ok=True)
-    
-    # Test each configuration
-    all_results = {{}}
-    for idx, config in enumerate(tuning_configs, 1):
-        config_dir = os.path.join(tuning_dir, f"config_{{idx}}")
-        os.makedirs(config_dir, exist_ok=True)
-        
-        # Override parameters with config values
-        for param_name, param_value in config.items():
-            setattr(args, param_name, param_value)
-        
-        # Run experiment with this configuration
-        results = run_experiment(args)  # Your main experiment function
-        
-        # Save results
-        with open(os.path.join(config_dir, "final_info.json"), "w") as f:
-            json.dump(results, f, indent=2)
-        
-        all_results[f"config_{{idx}}"] = {{
-            "parameters": config,
-            "results": results
-        }}
-    
-    # Save aggregated results
-    with open(os.path.join(args.out_dir, "tuning", "all_configs.json"), "w") as f:
-        json.dump(all_results, f, indent=2)
-else:
-    # Normal single-run mode (baseline)
-    baseline_dir = os.path.join(args.out_dir, "baseline")
-    os.makedirs(baseline_dir, exist_ok=True)
-    results = run_experiment(args)
-    with open(os.path.join(baseline_dir, "final_info.json"), "w") as f:
-        json.dump(results, f, indent=2)
-```
-
-2. **Refactor main logic into run_experiment() function:**
-- Extract the main experiment logic into a reusable function
-- This function should accept args and return results
-- Should NOT save files itself (caller handles saving)
-
-3. **File Structure:**
-```
-{{out_dir}}/
-    ├── baseline/
-    │   └── final_info.json
-    ├── tuning/              # Created when --enable_tuning
-    │   ├── config_1/
-    │   │   └── final_info.json
-    │   ├── config_2/
-    │   │   └── final_info.json
-    │   └── all_configs.json
-    └── experiment.py (snapshot)
-```
-
-4. **Key Points:**
-- ONE run tests ALL configurations (no multiple subprocess calls)
-- Results saved in nested structure under scenario directory
-- Baseline and tuning results clearly separated
-
-**CRITICAL: Use INCREMENTAL, TARGETED MODIFICATIONS!**
-
-**Modification Strategy (DO NOT rewrite the file):**
-1. Add `--enable_tuning` argument to argparse section
-2. Extract existing main logic into a `run_experiment(args)` function
-3. Add the tuning loop after argparse (if args.enable_tuning: ...)
-4. Modify the final save section to handle both baseline and tuning modes
-
-**Use search/replace or focused edits - DO NOT output the entire file!**
-
-Make sure the code can run with:
-```bash
-# Baseline run (normal mode)
-python experiment.py --out_dir=run_scenario
-
-# Tuning run (batch mode)
-python experiment.py --out_dir=run_scenario --enable_tuning
-```
-"""
-    
-    print("🤖 AI 正在重构 experiment.py...")
-    coder_out = coder.run(preparation_prompt)
-    print(coder_out)
-    print("✅ experiment.py 已修改为支持批量参数测试")
-    
-    return True
-
-
-def run_tuning_configs_for_scenario(folder_name, scenario_name, base_params, tuning_configs, coder, max_retries=3):
-    """
-    运行批量参数调优（一次运行完成所有配置）
-    
-    新方案：调用一次 experiment.py --enable_tuning，内部循环测试所有配置
-    """
-    cwd = osp.abspath(folder_name)
-    scenario_dir = osp.join(cwd, f"run_{scenario_name}")
-    
-    print(f"\n🎯 开始批量参数调优（一次运行测试 {len(tuning_configs)} 个配置）")
-    
-    # 先让 AI 修改代码以支持批量测试
-    prepare_tuning_code_for_scenario(folder_name, scenario_name, base_params, tuning_configs, coder)
-    
-    # 执行批量调优
-    success = False
-    final_error = None
-    
-    for attempt in range(max_retries):
-        print(f"\n尝试 {attempt+1}/{max_retries}: 执行批量调优...")
-        
-        # 构建基础参数（不包括调优参数，它们在代码内部定义）
-        args_list = ["--enable_tuning"]
-        for key, value in base_params.items():
-            if key not in [k for config in tuning_configs for k in config.keys()]:
-                if key.startswith('--'):
-                    args_list.append(f"{key}={value}")
-                else:
-                    args_list.append(f"--{key}={value}")
-        
-        command = ["python", "experiment.py", f"--out_dir={scenario_dir}"] + args_list
-        
-        try:
-            print(f"   执行: {' '.join(command[:7])}...")
-            result = subprocess.run(
-                command,
-                cwd=cwd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                timeout=7200  # 2小时超时（测试多个配置需要更长时间）
-            )
-            
-            if result.returncode == 0:
-                # 检查结果文件
-                all_configs_file = osp.join(scenario_dir, "tuning", "all_configs.json")
-                if osp.exists(all_configs_file):
-                    with open(all_configs_file, 'r') as f:
-                        all_results_data = json.load(f)
-                    
-                    # 保存调优版本的代码快照（支持 --enable_tuning 的版本）
-                    exp_file = osp.join(cwd, "experiment.py")
-                    plot_file = osp.join(cwd, "plot.py")
-                    
-                    tuning_dir = osp.join(scenario_dir, "tuning")
-                    if osp.exists(exp_file):
-                        # 保存到 tuning/ 目录下，不覆盖场景根目录的 baseline 版本
-                        shutil.copy(exp_file, osp.join(tuning_dir, "experiment_with_tuning.py"))
-                        print(f"   💾 调优版本代码已保存: {osp.join(tuning_dir, 'experiment_with_tuning.py')}")
-                    
-                    if osp.exists(plot_file):
-                        shutil.copy(plot_file, osp.join(tuning_dir, "plot.py"))
-                    
-                    print(f"   ✅ 批量调优成功完成")
-                    success = True
-                    
-                    # 解析结果
-                    results = []
-                    for config_name, config_data in all_results_data.items():
-                        results.append({
-                            "config": config_data["parameters"],
-                            "status": "success",
-                            "run_dir": osp.join(scenario_dir, "tuning", config_name),
-                            "results": config_data["results"]
-                        })
-                    
-                    return results
-                else:
-                    final_error = f"all_configs.json 未生成"
-            else:
-                final_error = result.stderr[:500] if result.stderr else "Unknown error"
-                
-                # AI 修复
-                if attempt < max_retries - 1:
-                    print(f"   🤖 AI 修复代码...")
-                    fix_prompt = f"""The batch tuning failed with error:
-{final_error}
-
-**CRITICAL: Fix using MINIMAL, TARGETED EDITS - DO NOT rewrite the entire file!**
-
-The code should:
-1. Accept --enable_tuning flag → Fix argparse if broken
-2. Loop through all configurations internally → Fix the tuning loop logic
-3. Save results in nested structure: {{out_dir}}/tuning/config_X/final_info.json
-4. Create all_configs.json with aggregated results
-
-**Instructions:**
-- Identify the EXACT issue from the error message
-- Make SURGICAL fixes to only the problematic section
-- Use search/replace for targeted modifications
-- DO NOT output code that's already working
-
-Fix the specific issues and ensure the code runs correctly."""
-                    coder.run(fix_prompt)
-                    import time
-                    time.sleep(2)
-        
-        except TimeoutExpired:
-            final_error = "Timeout (2 hours)"
-            print(f"   ⏰ 批量调优超时")
-        except Exception as e:
-            final_error = str(e)
-            print(f"   💥 异常: {str(e)}")
-    
-    # 所有尝试都失败
-    print(f"\n❌ 批量调优失败: {final_error}")
-    return [{
-        "config": config,
-        "status": "failed",
-        "error": final_error
-    } for config in tuning_configs]
-
-
-def analyze_tuning_results_for_scenario(scenario_name, baseline_results, tuning_results, coder):
-    """
-    AI 分析场景的调优结果
-    
-    返回: {"best_config": {...}, "improvement": str, "analysis": str}
-    """
-    successful_results = [r for r in tuning_results if r["status"] == "success"]
-    
-    if not successful_results:
-        return {"best_config": None, "improvement": "0%", "analysis": "所有配置都失败"}
-    
-    prompt = f"""Analyze the hyperparameter tuning results for scenario: {scenario_name}
-
-# Baseline Results
-{json.dumps(baseline_results, indent=2)}
-
-# Tuning Results
-{json.dumps(successful_results, indent=2)}
-
-# Your Task
-Provide a concise analysis:
-
-1. **Best Configuration**: Which config achieved best performance? What are the parameter values?
-2. **Performance Improvement**: How much better than baseline (in %)
-3. **Parameter Insights**: Which parameters had the strongest impact?
-4. **Recommendation**: Final recommended settings for this scenario
-
-Keep the analysis clear and actionable (3-5 sentences per section).
-"""
-    
-    print(f"\n📊 AI 分析场景 '{scenario_name}' 的调优结果...")
-    analysis_text = coder.run(prompt)
-    
-    return {
-        "successful_configs": len(successful_results),
-        "total_configs": len(tuning_results),
-        "analysis": analysis_text
-    }
-
-
 def tune_scenario_immediately(folder_name, scenario_info, coder, algo_info=None):
     """
-    场景执行成功后立即进行参数调优
+    Scenario-level Immediate Tuning - Separate Script Mode
     
-    这是核心函数，在每个场景成功后被调用
-    
-    Args:
-        folder_name: 实验文件夹路径
-        scenario_info: 场景信息字典
-        coder: Aider Coder 对象
-        algo_info: 算法信息字典（用于上下文重注）
+    Strategy:
+    1. Refactor experiment.py to ensure `run_experiment(args)` is importable.
+    2. Generate a temporary `tune_experiment.py` script.
+    3. Run the tuning script to test configs and save summary.
     """
     if not ENABLE_HYPERPARAMETER_TUNING:
         return None
     
     scenario_name = scenario_info["name"]
-    
-    print("\n" + "="*80)
-    print(f"🎯 场景级即时调优: {scenario_name}")
+    print(f"\n" + "="*80)
+    print(f"🎯 Scenario Tuning: {scenario_name} (Separate Script Mode)")
     print("="*80)
     
-    # [上下文管理] 调优开始前清理历史
-    # 场景执行过程中可能积累了很多调试信息，在调优前清理掉
-    # if algo_info:  # 临时注释掉用于测试
-    #     reset_and_prime_coder(
-    #         coder, 
-    #         algo_info, 
-    #         stage_description=f"Hyperparameter Tuning for Scenario: {scenario_name}"
-    #     )
-    
-    # Step 1: 读取baseline结果（现在应该在 baseline/ 子目录）
+    # 1. Extract tunable parameters
+    tunable_params = extract_tunable_parameters_from_code(folder_name)
+    if not tunable_params:
+        print("⚠️ No tunable parameters found, skipping.")
+        return None
+        
+    # 2. Get baseline results (try new nested structure first)
     run_dir = scenario_info.get("run_dir", f"run_{scenario_name}")
-    
-    # 尝试新的嵌套结构
     result_file = osp.join(folder_name, run_dir, "baseline", "final_info.json")
     if not osp.exists(result_file):
-        # 回退到旧结构（兼容性）
         result_file = osp.join(folder_name, run_dir, "final_info.json")
-        if not osp.exists(result_file):
-            print("⚠️ 未找到baseline结果，跳过调优")
-            return None
     
-    with open(result_file, 'r') as f:
-        baseline_results = json.load(f)
+    baseline_results = {}
+    if osp.exists(result_file):
+        with open(result_file, 'r') as f:
+            baseline_results = json.load(f)
     
-    print(f"📊 Baseline性能:")
-    for metric, data in baseline_results.items():
-        if "means" in data and data["means"]:
-            print(f"   {metric}: {data['means'][-1]:.4f}")
-    
-    # Step 2: 提取可调参数
-    print(f"\n📋 提取可调参数...")
-    tunable_params = extract_tunable_parameters_from_code(folder_name)
-    
-    if not tunable_params:
-        print("⚠️ 未找到可调参数，跳过调优")
-        return None
-    
-    print(f"✅ 找到 {len(tunable_params)} 个可调参数")
-    
-    # Step 3: AI设计调优策略
-    print(f"\n🤖 AI 设计调优策略...")
+    # 3. Design Tuning Strategy
+    print(f"🤖 AI designing tuning strategy...")
     strategy = design_tuning_strategy_for_scenario(
         scenario_info, baseline_results, tunable_params, coder
     )
     
-    if not strategy:
-        print("❌ AI 未能生成有效策略，跳过调优")
+    if not strategy or not strategy.get("configs"):
+        print("❌ Invalid strategy or no configs generated.")
         return None
     
-    print(f"✅ 策略: 调优参数 {strategy['selected_parameters']}")
-    print(f"   配置数量: {len(strategy['configs'])}")
+    # ========================================================================
+    # Step A: Ensure experiment.py is importable
+    # ========================================================================
+    print("🔧 Refactoring experiment.py for importability...")
+    ensure_importability_prompt = """
+We need to run hyperparameter tuning by importing functions from experiment.py into a separate script.
+
+**Your Task:**
+Refactor `experiment.py` to ensure the main training logic is encapsulated in a function `run_experiment(args)` that:
+1. Accepts an `args` object (Namespace or dict) as input.
+2. Returns the results dictionary (the same dict you save to json).
+3. Can be imported without running the script (put the `main()` call under `if __name__ == "__main__":`).
+
+**CRITICAL: Use MINIMAL, TARGETED EDITS (Diff).**
+- If `run_experiment` already exists, just ensure it returns results.
+- If logic is in `main()`, extract it to `run_experiment(args)`.
+- DO NOT rewrite the whole file.
+"""
+    coder.run(ensure_importability_prompt)
     
-    # Step 4: 执行调优配置
-    print(f"\n⚙️  执行调优配置...")
-    base_params = scenario_info.get("parameters", {})
-    tuning_results = run_tuning_configs_for_scenario(
-        folder_name, scenario_name, base_params, strategy['configs'], coder
-    )
+    # ========================================================================
+    # Step B: Generate independent tuning script
+    # ========================================================================
+    print("📜 Generating tune_experiment.py...")
     
-    # Step 5: 分析结果
-    print(f"\n📊 分析调优结果...")
-    analysis = analyze_tuning_results_for_scenario(
-        scenario_name, baseline_results, tuning_results, coder
-    )
+    configs_json = json.dumps(strategy['configs'], indent=2)
+    base_params_json = json.dumps(scenario_info.get('parameters', {}))
     
-    # 保存调优报告（保存在场景目录下）
-    report = {
-        "scenario_name": scenario_name,
-        "baseline_results": baseline_results,
-        "tuning_strategy": strategy,
-        "tuning_results": tuning_results,
-        "analysis": analysis,
-        "timestamp": datetime.now().isoformat()
-    }
+    tuning_script_prompt = f"""
+Create a NEW Python script named `tune_experiment.py` to perform hyperparameter tuning.
+
+**Requirements:**
+1. Import `run_experiment` from `experiment` module (and any necessary types).
+2. Define the parameter configurations to test:
+{configs_json}
+
+3. Implement a loop to test each configuration:
+   - Create a simple class or Namespace to mock `args` based on these base parameters: {base_params_json}
+   - Loop through configs, override parameters, and set `args.out_dir` to `tuning/config_N`.
+   - Call `run_experiment(args)`.
+   - Catch exceptions so one failure doesn't stop the whole tuning.
+
+4. Calculate the best configuration (compare final loss or accuracy).
+5. Save a summary to `tuning/tuning_summary.json` containing:
+   - "best_config": parameters of the best run
+   - "best_result": metrics of the best run
+   - "all_results": summary of all runs
+
+**Output:**
+Generate the complete `tune_experiment.py` file code.
+"""
+    coder.run(tuning_script_prompt)
     
-    # 新结构：保存在场景目录的 tuning_report.json
-    scenario_dir = osp.join(folder_name, run_dir)
-    report_file = osp.join(scenario_dir, "tuning_report.json")
-    with open(report_file, 'w', encoding='utf-8') as f:
-        json.dump(report, f, indent=2, ensure_ascii=False)
+    # ========================================================================
+    # Step C: Execute Tuning Script
+    # ========================================================================
+    print("⚙️ Executing tune_experiment.py...")
+    cwd = osp.abspath(folder_name)
     
-    print(f"\n💾 调优报告已保存: {report_file}")
-    print(f"✅ 场景 '{scenario_name}' 参数调优完成")
-    print("="*80)
-    
-    return report
+    try:
+        # Run the generated script
+        result = subprocess.run(
+            ["python", "tune_experiment.py"], 
+            cwd=cwd, 
+            stdout=subprocess.PIPE, 
+            stderr=subprocess.PIPE, 
+            text=True, 
+            timeout=7200 
+        )
+        
+        if result.returncode != 0:
+            print(f"❌ Tuning script failed:\n{result.stderr[:500]}")
+            return None
+            
+        print("✅ Tuning completed.")
+        
+        # Step D: Load Best Results
+        # Look for the summary file in the scenario directory (or root depending on implementation)
+        # Note: The prompt asks to save to `tuning/tuning_summary.json` relative to execution
+        summary_file = osp.join(cwd, "tuning", "tuning_summary.json")
+        
+        if osp.exists(summary_file):
+            with open(summary_file, 'r') as f:
+                summary = json.load(f)
+            
+            best_config = summary.get("best_config")
+            print(f"🏆 Best Config: {best_config}")
+            
+            # Save report to scenario directory
+            scenario_dir = osp.join(folder_name, run_dir)
+            report_file = osp.join(scenario_dir, "tuning_report.json")
+            with open(report_file, 'w', encoding='utf-8') as f:
+                json.dump(summary, f, indent=2)
+                
+            return summary
+            
+    except TimeoutExpired:
+        print("⏰ Tuning timed out.")
+        return None
+    except Exception as e:
+        print(f"💥 Tuning exception: {e}")
+        return None
 
 
 def generate_comprehensive_visualization(folder_name, coder=None, scenario_results=None):
