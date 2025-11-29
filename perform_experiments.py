@@ -269,7 +269,16 @@ The generated code must:
 - Generate the required output file (final_info.json) with correct format
 - Complete execution within reasonable time (for initial test)
 
+## 5. Important Note on Future Modifications
+After initial generation, all future modifications should be MINIMAL and TARGETED:
+- Use search/replace for specific fixes
+- Make surgical edits to only the problematic sections
+- DO NOT regenerate entire files unless absolutely necessary
+- This is to conserve computational resources
+
 Please generate BOTH experiment.py and plot.py now. Make sure they are complete, runnable, and follow all requirements above.
+
+**Note: This is initial generation, so full file content is needed. Future fixes will use targeted edits only.**
 """
 
 # ============================================================================
@@ -311,9 +320,13 @@ Please carefully compare the implementation with the pseudocode and check for:
 
 Please respond with:
 - "LOGIC_VALIDATION_PASSED" if the code correctly implements the pseudocode
-- Otherwise, explain what needs to be fixed and make the necessary changes
+- Otherwise, explain what needs to be fixed and make MINIMAL, TARGETED changes
 
-If you find issues, please fix them and regenerate the experiment.py file.
+**CRITICAL: If fixes are needed, DO NOT rewrite the entire file!**
+- Identify the specific algorithmic discrepancies
+- Make SURGICAL edits to fix only those parts
+- Use search/replace for targeted modifications
+- Preserve all correctly implemented sections
 """
 
 # ============================================================================
@@ -334,7 +347,14 @@ For reference, the baseline results are as follows:
 
 After you complete each change, we will run the command `python experiment.py --out_dir=run_i' where i is the run number and evaluate the results.
 YOUR PROPOSED CHANGE MUST USE THIS COMMAND FORMAT, DO NOT ADD ADDITIONAL COMMAND LINE ARGS.
-You can then implement the next thing on your list."""
+You can then implement the next thing on your list.
+
+**CRITICAL INSTRUCTION FOR ALL MODIFICATIONS:**
+- Use MINIMAL, TARGETED EDITS when modifying experiment.py
+- DO NOT rewrite or output the entire file
+- Use search/replace or focused edits for specific changes
+- Only modify the sections that need to change for each run
+- This conserves computational resources and reduces errors"""
 
 
 # ============================================================================
@@ -993,12 +1013,14 @@ def generate_code_from_pseudocode(idea, folder_name, coder, algorithm_tex_path=N
         
         if not osp.exists(exp_file):
             print("❌ experiment.py 未生成")
-            next_prompt = """experiment.py file was not created. Please generate the complete experiment.py file now.
+            next_prompt = """experiment.py file was not created. Please CREATE the experiment.py file now.
 
 Remember the critical requirements:
 1. Must accept --out_dir command-line argument
-2. Must save results to {out_dir}/final_info.json
+2. Must save results to {out_dir}/baseline/final_info.json
 3. JSON format: {"metric": {"means": [...], "stds": [...]}}
+
+NOTE: This is initial file creation, so full file content is needed.
 """
             continue
         
@@ -1010,7 +1032,14 @@ Remember the critical requirements:
 
 {syntax_error}
 
-Please fix these syntax errors and regenerate the file.
+Please fix these syntax errors using TARGETED EDITS ONLY.
+
+**CRITICAL: DO NOT output the entire file!**
+- Identify the exact lines with errors
+- Make minimal, surgical fixes to those specific lines
+- Use the edit/replace functionality to modify only the problematic code sections
+
+Focus on fixing ONLY the syntax errors mentioned above, nothing else.
 """
             continue
         
@@ -1051,15 +1080,23 @@ Please fix these syntax errors and regenerate the file.
 
 {test_error}
 
-Please fix these errors. Common issues to check:
-1. Missing import statements
-2. Undefined variables or functions
-3. Incorrect data types or shapes
-4. File I/O errors
-5. Missing --out_dir argument handling
-6. Incorrect final_info.json format
+Please fix these errors using MINIMAL, TARGETED EDITS.
 
-Please regenerate the corrected experiment.py file.
+**CRITICAL: DO NOT rewrite or output the entire file!**
+
+Common issues to check and fix:
+1. Missing import statements → Add only the missing imports at the top
+2. Undefined variables or functions → Fix the specific line/function
+3. Incorrect data types or shapes → Adjust the problematic operation
+4. File I/O errors → Fix the file handling code
+5. Missing --out_dir argument handling → Add argument parsing if missing
+6. Incorrect final_info.json format → Fix the save logic
+
+**Instructions:**
+- Analyze the error traceback to identify the EXACT problematic lines
+- Make SURGICAL fixes to only those specific locations
+- Use search/replace or edit commands for targeted modifications
+- DO NOT output code that's already working correctly
 """
             continue
 
@@ -1078,13 +1115,21 @@ Please regenerate the corrected experiment.py file.
 
         {plot_test_error}
 
-        Please fix plot.py to:
-        1. Accept --out_dir command-line argument
-        2. Use matplotlib for visualizations
-        3. Save plots to the specified output directory as PNG files
-        4. Run without errors
+        Please fix plot.py using MINIMAL, TARGETED EDITS.
 
-        Please regenerate the corrected plot.py file.
+        **CRITICAL: DO NOT rewrite the entire file!**
+
+        Required fixes:
+        1. Accept --out_dir command-line argument (add if missing)
+        2. Use matplotlib for visualizations (fix import/usage if broken)
+        3. Save plots to the specified output directory as PNG files
+        4. Fix any runtime errors
+
+        **Instructions:**
+        - Identify the EXACT issue from the error message
+        - Make SURGICAL fixes to only the problematic code
+        - Use search/replace for targeted modifications
+        - DO NOT output working code sections
         """
             continue
         else:
@@ -1126,8 +1171,6 @@ Please regenerate the corrected experiment.py file.
             # 生成下一轮修复的提示词
             next_prompt = f"""The code logic validation failed. The AI identified discrepancies between the implementation and the pseudocode.
 
-Please carefully review the pseudocode and fix the implementation:
-
 # Algorithm Pseudocode
 {pseudocode}
 
@@ -1136,7 +1179,15 @@ Key issues identified:
 - Some algorithmic steps may be missing or incorrectly implemented
 - Mathematical formulas or procedures may not match
 
-Please regenerate experiment.py to correctly implement the pseudocode logic.
+**CRITICAL: Make TARGETED FIXES ONLY - DO NOT rewrite the entire file!**
+
+**Instructions:**
+1. Identify the SPECIFIC algorithmic components that don't match the pseudocode
+2. Make SURGICAL edits to fix only those components
+3. Use search/replace to modify specific functions/sections
+4. Preserve all correctly implemented parts
+
+Focus on the algorithmic logic discrepancies, not cosmetic changes.
 """
             continue
     
@@ -1552,9 +1603,11 @@ def perform_experiments(idea, folder_name, coder, baseline_results, algorithm_te
         # 让 AI 修复可视化代码
         print("🤖 AI 正在修复可视化代码...")
         fix_plot_prompt = """
-The multi-scenario plotting failed. Please fix plot.py to properly visualize all the experimental scenarios.
+The multi-scenario plotting failed. Please fix plot.py using MINIMAL, TARGETED EDITS.
 
-Key requirements:
+**CRITICAL: DO NOT rewrite the entire file!**
+
+Key requirements to fix:
 1. Read results from all successful scenario directories
 2. Generate comprehensive comparison plots showing different scenarios
 3. Use clear labels and legends to distinguish different scenarios
@@ -1563,7 +1616,13 @@ Key requirements:
    - Scenario comparison bar charts
    - Performance summary plots
 
-Please provide the complete, corrected plot.py file.
+**Instructions:**
+- Identify the specific issue causing the failure
+- Make SURGICAL fixes to only the problematic section
+- Use search/replace for targeted modifications
+- DO NOT output code that's working correctly
+
+Please provide TARGETED fixes to plot.py.
 """
         coder.run(fix_plot_prompt)
         
@@ -1728,7 +1787,18 @@ Modify experiment.py to properly implement this scenario's requirements:
 - Add any new parameters needed for this scenario
 - The code should be FULLY FUNCTIONAL for this specific scenario
 
-Please modify experiment.py now to correctly implement this scenario."""
+**CRITICAL: Use MINIMAL, TARGETED EDITS - DO NOT rewrite the entire file!**
+
+**Modification Strategy:**
+1. Identify which specific functions/sections need changes for this scenario
+2. Add new functions if needed (e.g., partition_non_iid, add_label_noise)
+3. Modify only the data generation/loading section to call these new functions
+4. Add new command-line arguments if required
+5. DO NOT touch working code sections (model, training loop, etc.)
+
+**Use search/replace or focused edits - preserve all existing working code!**
+
+Please modify experiment.py now with TARGETED changes for this scenario."""
 
             print(f"🤖 AI 正在调整代码以匹配场景需求...")
             coder_out = coder.run(preparation_prompt)
@@ -1803,14 +1873,22 @@ Parameters used:
 Expected insight:
 {scenario.get('expected_insight', 'No expected insight provided')}
 
-Please fix experiment.py to handle this scenario correctly. Common issues to check:
-1. Parameter validation and handling
-2. Data generation/loading for this specific configuration
-3. Model compatibility with the given parameters
-4. Edge cases in the algorithm implementation
-5. File I/O and result saving
+**CRITICAL: Fix using MINIMAL, TARGETED EDITS - DO NOT rewrite the entire file!**
 
-Please make the necessary changes to experiment.py now.
+Common issues to check and fix:
+1. Parameter validation and handling → Fix argument parsing/validation
+2. Data generation/loading → Fix the specific data preparation function
+3. Model compatibility → Adjust model initialization if needed
+4. Edge cases → Add boundary checks where missing
+5. File I/O and result saving → Fix save operations
+
+**Instructions:**
+- Analyze the error to pinpoint the EXACT problematic function/line
+- Make SURGICAL fixes to only that specific location
+- Use search/replace for targeted modifications
+- DO NOT modify code that's working correctly
+
+Please make TARGETED changes to experiment.py now.
 """
                     
                     # AI 修复代码
@@ -2266,7 +2344,17 @@ else:
 - Results saved in nested structure under scenario directory
 - Baseline and tuning results clearly separated
 
-Please implement this NOW. Make sure the code can run with:
+**CRITICAL: Use INCREMENTAL, TARGETED MODIFICATIONS!**
+
+**Modification Strategy (DO NOT rewrite the file):**
+1. Add `--enable_tuning` argument to argparse section
+2. Extract existing main logic into a `run_experiment(args)` function
+3. Add the tuning loop after argparse (if args.enable_tuning: ...)
+4. Modify the final save section to handle both baseline and tuning modes
+
+**Use search/replace or focused edits - DO NOT output the entire file!**
+
+Make sure the code can run with:
 ```bash
 # Baseline run (normal mode)
 python experiment.py --out_dir=run_scenario
@@ -2372,14 +2460,21 @@ def run_tuning_configs_for_scenario(folder_name, scenario_name, base_params, tun
                     fix_prompt = f"""The batch tuning failed with error:
 {final_error}
 
-Please fix experiment.py to correctly implement batch parameter tuning.
+**CRITICAL: Fix using MINIMAL, TARGETED EDITS - DO NOT rewrite the entire file!**
+
 The code should:
-1. Accept --enable_tuning flag
-2. Loop through all configurations internally
+1. Accept --enable_tuning flag → Fix argparse if broken
+2. Loop through all configurations internally → Fix the tuning loop logic
 3. Save results in nested structure: {{out_dir}}/tuning/config_X/final_info.json
 4. Create all_configs.json with aggregated results
 
-Fix the issues and ensure the code runs correctly."""
+**Instructions:**
+- Identify the EXACT issue from the error message
+- Make SURGICAL fixes to only the problematic section
+- Use search/replace for targeted modifications
+- DO NOT output code that's already working
+
+Fix the specific issues and ensure the code runs correctly."""
                     coder.run(fix_prompt)
                     import time
                     time.sleep(2)
@@ -2596,9 +2691,11 @@ Please update plot.py to visualize results from the following scenario directori
 
 {json.dumps(successful_runs, indent=2)}
 
+**CRITICAL: Make MINIMAL, TARGETED EDITS - DO NOT rewrite the entire file!**
+
 Key requirements:
 1. Update the 'labels' dictionary to map these scenario directories to their labels
-2. Read final_info.json from each directory
+2. Read final_info.json from each directory (may need to adjust file paths)
 3. Generate comparison plots showing all scenarios
 4. Use clear legends and labels to distinguish different scenarios
 5. Create professional-looking plots with appropriate styling
@@ -2613,7 +2710,13 @@ labels = {{
 }}
 ```
 
-Please modify plot.py now to handle these scenario directories.
+**Instructions:**
+- Locate the existing 'labels' dictionary in plot.py
+- Replace it with the updated mapping above
+- If file reading logic needs adjustment, modify only that section
+- DO NOT rewrite plotting code that's already working
+
+Please make TARGETED modifications to plot.py now.
 """
             coder.run(update_plot_prompt)
             print("✅ AI 已更新 plot.py")
@@ -2706,7 +2809,16 @@ def perform_original_experiment_loop(idea, folder_name, coder, baseline_results)
     current_iter = 0
     next_prompt = """
 Please modify `plot.py` to generate the most relevant plots for the final writeup. 
-Be sure to fill in the "labels" dictionary with the correct names for each run that you want to plot.
+
+**CRITICAL: Make MINIMAL, TARGETED EDITS - DO NOT rewrite the entire file!**
+
+**Instructions:**
+- Locate the existing 'labels' dictionary in plot.py
+- Update it with the correct names for each run directory
+- If plotting logic needs adjustment, modify only that specific section
+- DO NOT output code that's already working
+
+Focus on updating the labels dictionary and any broken plotting logic.
 """
     
     while True:
