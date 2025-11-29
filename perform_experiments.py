@@ -88,6 +88,19 @@ import os
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--out_dir', type=str, required=True)
+    
+    # CRITICAL: Expose ALL algorithm-specific parameters as command-line arguments!
+    # For federated learning / subspace methods, include:
+    parser.add_argument('--learning_rate', type=float, default=0.01, help='Learning rate')
+    parser.add_argument('--num_iterations', type=int, default=100, help='Number of rounds/epochs')
+    parser.add_argument('--batch_size', type=int, default=32, help='Minibatch size')
+    parser.add_argument('--momentum', type=float, default=0.9, help='Momentum coefficient')
+    # For subspace-based algorithms (SFedAvg, GaLore, etc.):
+    parser.add_argument('--subspace_dim', type=int, default=10, help='Subspace dimension r')
+    parser.add_argument('--local_steps', type=int, default=5, help='Local SGD steps tau')
+    parser.add_argument('--client_fraction', type=float, default=0.5, help='Client sampling fraction')
+    # Add other algorithm-specific parameters as needed
+    
     args = parser.parse_args()
     
     # Create output directory
@@ -109,6 +122,12 @@ def main():
 if __name__ == "__main__":
     main()
 ```
+
+**IMPORTANT: Parameter Exposure**
+- DO NOT hardcode algorithm hyperparameters (learning_rate, momentum, subspace_dim, etc.)
+- ALWAYS expose them as command-line arguments with reasonable defaults
+- This enables hyperparameter tuning to optimize ALL aspects of the algorithm
+- For comparison studies (e.g., FedAvg vs SFedAvg), ensure both algorithms can use the same parameter interface
 
 **CRITICAL OUTPUT STRUCTURE REQUIREMENT:**
 - Results MUST be saved to: {{out_dir}}/baseline/final_info.json
@@ -2142,11 +2161,11 @@ def extract_tunable_parameters_from_code(folder_name):
 
 def design_tuning_strategy_for_scenario(scenario_info, current_results, tunable_params, coder):
     """
-    让 AI 为当前场景设计参数调优策略
+    让 AI 为当前场景设计参数调优搜索空间（用于随机搜索）
     
-    返回: {"selected_params": [...], "configs": [{...}], "rationale": str}
+    返回: {"search_space": {...}, "rationale": str, "num_trials": int}
     """
-    prompt = f"""You are an expert in hyperparameter optimization. Design a tuning strategy for the following scenario.
+    prompt = f"""You are an expert in hyperparameter optimization. Design a Search Space for Random Search hyperparameter tuning.
 
 # Scenario Information
 Name: {scenario_info.get('name', 'Unknown')}
@@ -2159,42 +2178,58 @@ Description: {scenario_info.get('description', '')}
 {json.dumps(tunable_params, indent=2)}
 
 # Your Task
-Design 5-8 parameter configurations to test, focusing on 2-3 most impactful parameters.
+Select 2-4 key parameters to tune and define their search ranges for Random Search.
+
+## Parameter Type Specifications
+
+### For Float Parameters:
+- Specify: `{{"type": "float", "min": <value>, "max": <value>, "scaling": "linear" or "log"}}`
+- Use "log" scaling for parameters that span orders of magnitude (e.g., learning_rate: 0.0001 to 0.1)
+- Use "linear" for parameters with narrow ranges
+
+### For Integer Parameters:
+- Specify: `{{"type": "int", "min": <value>, "max": <value>}}`
+- Examples: num_layers, num_iterations, batch_size
+
+### For Categorical Parameters:
+- Specify: `{{"type": "categorical", "values": [val1, val2, ...]}}`
+- Examples: activation_function, optimizer
 
 ## Requirements
-1. Select 2-3 parameters that are most likely to affect performance in THIS scenario
-2. For each parameter, explain why it matters
-3. Generate 5-8 concrete configurations (parameter combinations) to test
-4. Keep other parameters at their default values
-5. Configuration limit: Maximum {MAX_TUNING_CONFIGS_PER_SCENARIO} configs
+1. Select 2-4 parameters that are most likely to affect performance in THIS scenario
+2. For each parameter, define appropriate search range based on its current value and expected impact
+3. Choose appropriate scaling (linear vs log) for continuous parameters
+4. Recommend number of random trials (typically 8-15)
+
+**CRITICAL: Prioritize algorithm-specific parameters!**
+- For subspace-based algorithms: ALWAYS include `subspace_dim` or similar if available
+- For momentum-based methods: Include `momentum` coefficient if available
+- For federated learning: Consider `local_steps`, `client_fraction`, `batch_size`
+- Learning rate is important but not the only parameter to tune!
 
 ## Output Format (MUST be valid JSON)
 ```json
 {{
-  "selected_parameters": ["param1", "param2"],
-  "selection_rationale": "Why these parameters are important for THIS scenario",
-  "configs": [
-    {{"param1": value1, "param2": value2, "rationale": "Why test this combination"}},
-    {{"param1": value1, "param2": value3, "rationale": "Why test this combination"}},
-    ...
-  ],
-  "expected_improvement": "What improvement we expect to see"
+  "search_space": {{
+    "learning_rate": {{"type": "float", "min": 0.001, "max": 0.2, "scaling": "log"}},
+    "batch_size": {{"type": "categorical", "values": [32, 64, 128]}},
+    "num_layers": {{"type": "int", "min": 1, "max": 5}}
+  }},
+  "rationale": "Explanation of why these parameters and ranges were chosen for THIS scenario",
+  "num_trials": 10,
+  "expected_improvement": "What improvement we expect to see with optimized parameters"
 }}
 ```
 
 IMPORTANT:
 - Return ONLY valid JSON, no extra text
-- Configs should be diverse but focused
-- Consider the scenario's specific challenges
+- Search ranges should be informed by baseline performance and scenario characteristics
+- For subspace-based algorithms, consider including subspace_dim, momentum as tunable parameters if available
+- num_trials should be 8-15 (balancing exploration vs computational cost)
 """
     
-    print("🤖 AI 正在设计参数调优策略...")
+    print("🤖 AI 正在设计搜索空间...")
     ai_response = coder.run(prompt)
-    
-    # 保存 AI 原始响应用于调试（可选）
-    # debug_file = osp.join(folder_name, "tuning_strategy_debug.txt")
-    # with open(debug_file, 'w', encoding='utf-8') as f:
-    #     f.write(ai_response)
     
     # 解析 AI 响应
     try:
@@ -2231,12 +2266,13 @@ IMPORTANT:
         # 尝试解析 JSON
         strategy = json.loads(json_str)
         
-        # 验证必需字段
-        if "selected_parameters" in strategy and "configs" in strategy:
-            print(f"✅ 成功解析策略: {len(strategy['configs'])} 个配置")
+        # 验证必需字段（新格式）
+        if "search_space" in strategy:
+            num_trials = strategy.get('num_trials', 10)
+            print(f"✅ 成功解析搜索空间: {len(strategy['search_space'])} 个参数, {num_trials} 次试验")
             return strategy
         else:
-            print("❌ 策略缺少必需字段 (selected_parameters 或 configs)")
+            print("❌ 策略缺少必需字段 (search_space)")
             return None
             
     except json.JSONDecodeError as e:
@@ -2282,14 +2318,14 @@ def tune_scenario_immediately(folder_name, scenario_info, coder, algo_info=None)
         with open(result_file, 'r') as f:
             baseline_results = json.load(f)
     
-    # 3. Design Tuning Strategy
+    # 3. Design Tuning Strategy (now returns search_space instead of fixed configs)
     print(f"🤖 AI designing tuning strategy...")
     strategy = design_tuning_strategy_for_scenario(
         scenario_info, baseline_results, tunable_params, coder
     )
     
-    if not strategy or not strategy.get("configs"):
-        print("❌ Invalid strategy or no configs generated.")
+    if not strategy or not strategy.get("search_space"):
+        print("❌ Invalid strategy or no search_space defined.")
         return None
     
     # ========================================================================
@@ -2313,35 +2349,92 @@ Refactor `experiment.py` to ensure the main training logic is encapsulated in a 
     coder.run(ensure_importability_prompt)
     
     # ========================================================================
-    # Step B: Generate independent tuning script
+    # Step B: Generate independent tuning script with RANDOM SEARCH
     # ========================================================================
-    print("📜 Generating tune_experiment.py...")
+    print("📜 Generating tune_experiment.py with Random Search...")
     
-    configs_json = json.dumps(strategy['configs'], indent=2)
+    search_space_json = json.dumps(strategy['search_space'], indent=2)
+    num_trials = strategy.get('num_trials', 10)
     base_params_json = json.dumps(scenario_info.get('parameters', {}))
     
     tuning_script_prompt = f"""
-Create a NEW Python script named `tune_experiment.py` to perform hyperparameter tuning.
+Create a NEW Python script named `tune_experiment.py` to perform Random Search hyperparameter tuning.
 
 **Requirements:**
-1. Import `run_experiment` from `experiment` module (and any necessary types).
-2. Define the parameter configurations to test:
-{configs_json}
 
-3. Implement a loop to test each configuration:
-   - Create a simple class or Namespace to mock `args` based on these base parameters: {base_params_json}
-   - Loop through configs, override parameters, and set `args.out_dir` to `tuning/config_N`.
-   - Call `run_experiment(args)`.
-   - Catch exceptions so one failure doesn't stop the whole tuning.
+1. **Imports:**
+   Import `run_experiment` from `experiment`, plus `random`, `numpy as np`, `json`, `os`, `math`, and `argparse`.
 
-4. Calculate the best configuration (compare final loss or accuracy).
-5. Save a summary to `tuning/tuning_summary.json` containing:
-   - "best_config": parameters of the best run
-   - "best_result": metrics of the best run
-   - "all_results": summary of all runs
+2. **Define the Search Space:**
+{search_space_json}
+
+3. **Implement `sample_parameters(search_space, rng)` function:**
+   - For each parameter in search_space, sample a value based on its type:
+   
+   **Float parameters:**
+   ```python
+   if param_spec["type"] == "float":
+       if param_spec.get("scaling") == "log":
+           # Log-uniform sampling
+           log_min = math.log(param_spec["min"])
+           log_max = math.log(param_spec["max"])
+           value = math.exp(rng.uniform(log_min, log_max))
+       else:
+           # Linear uniform sampling
+           value = rng.uniform(param_spec["min"], param_spec["max"])
+   ```
+   
+   **Integer parameters:**
+   ```python
+   elif param_spec["type"] == "int":
+       value = rng.randint(param_spec["min"], param_spec["max"] + 1)
+   ```
+   
+   **Categorical parameters:**
+   ```python
+   elif param_spec["type"] == "categorical":
+       value = rng.choice(param_spec["values"])
+   ```
+   
+   Return a dictionary of sampled parameters.
+
+4. **Main Random Search Loop:**
+   - Run **{num_trials} trials**
+   - For each trial i:
+     * Sample parameters: `params = sample_parameters(search_space, rng)`
+     * Merge with base parameters: {base_params_json}
+     * Create args object (Namespace or simple class with attributes)
+     * Set `args.out_dir = f"tuning/trial_{{i}}"`
+     * Create output directory
+     * Call `result = run_experiment(args)` inside try-except
+     * Save result to `tuning/trial_{{i}}/final_info.json`
+     * Track metrics for best result selection
+
+5. **Best Result Selection:**
+   - Compare results across all trials
+   - Choose best based on final test accuracy (maximize) or final train loss (minimize)
+   - Handle missing/failed trials gracefully
+
+6. **Save Summary:**
+   Save to `tuning/tuning_summary.json`:
+   ```json
+   {{
+     "best_config": {{...}},  // Parameters of best trial
+     "best_result": {{...}},  // Metrics of best trial
+     "all_results": [        // Summary of all trials
+       {{"trial": 1, "parameters": {{...}}, "metrics": {{...}}, "status": "success"}},
+       ...
+     ]
+   }}
+   ```
+
+**Base Parameters (non-tunable):**
+{base_params_json}
+
+**Seed:** Use `rng = random.Random(42)` for reproducibility.
 
 **Output:**
-Generate the complete `tune_experiment.py` file code.
+Generate the complete `tune_experiment.py` file code implementing Random Search as specified above.
 """
     coder.run(tuning_script_prompt)
     
