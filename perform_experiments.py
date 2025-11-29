@@ -1461,7 +1461,7 @@ def perform_experiments(idea, folder_name, coder, baseline_results, algorithm_te
         
         # [上下文管理] 代码生成完成后，清理历史，准备进入场景设计阶段
         # 此时 experiment.py 已经生成好了，AI 只要读文件就行，不需要知道生成的曲折过程
-        reset_and_prime_coder(coder, algo_info, "Phase 0.5: AI Scenario Design")
+        # reset_and_prime_coder(coder, algo_info, "Phase 0.5: AI Scenario Design")  # 临时注释掉用于测试
     else:
         print("\n" + "="*80)
         print("ℹ️  未检测到 algorithm.tex，跳过代码生成阶段（不使用 idea['Pseudocode']）")
@@ -1479,7 +1479,7 @@ def perform_experiments(idea, folder_name, coder, baseline_results, algorithm_te
     
     # [上下文管理] 场景设计完成后，清理历史，准备进入正式执行阶段
     # 此时我们有了 scenarios 列表，不需要 AI 记得它是怎么想出这些场景的
-    reset_and_prime_coder(coder, algo_info, "Phase 1: Experiment Execution")
+    # reset_and_prime_coder(coder, algo_info, "Phase 1: Experiment Execution")  # 临时注释掉用于测试
 
     # ========================================================================
     # 阶段 1: 迭代实验循环（修改为支持 AI 设计场景）
@@ -1529,7 +1529,7 @@ def perform_experiments(idea, folder_name, coder, baseline_results, algorithm_te
     
     # [上下文管理] 场景执行完成后，清理历史，准备进入可视化阶段
     # 此时已有所有实验结果，不需要 AI 记得实验执行的曲折过程
-    reset_and_prime_coder(coder, algo_info, "Phase 2: Visualization Generation")
+    # reset_and_prime_coder(coder, algo_info, "Phase 2: Visualization Generation")  # 临时注释掉用于测试
     
     # ========================================================================
     # 阶段 2: 可视化生成（增强版，支持多场景）
@@ -1674,14 +1674,15 @@ def execute_ai_designed_scenarios(folder_name, scenarios, coder, max_retries=MAX
             print(f"🔧 为场景 {i} 调整代码实现...")
             
             # [上下文管理] 在场景切换时清理历史并重注上下文
-            context_prefix = reset_and_prime_coder(
-                coder, 
-                algo_info, 
-                stage_description=f"Scenario {i}/{len(scenarios)}: {scenario_name}"
-            )
+            # context_prefix = reset_and_prime_coder(  # 临时注释掉用于测试
+            #     coder, 
+            #     algo_info, 
+            #     stage_description=f"Scenario {i}/{len(scenarios)}: {scenario_name}"
+            # )
             
             # 将上下文重注提示词添加到 preparation_prompt 前面
-            preparation_prompt = context_prefix + f"""
+            # preparation_prompt = context_prefix + f"""  # 临时注释掉用于测试
+            preparation_prompt = f"""
 
 Now prepare the code for the next scenario: {scenario_name}
 
@@ -2462,12 +2463,12 @@ def tune_scenario_immediately(folder_name, scenario_info, coder, algo_info=None)
     
     # [上下文管理] 调优开始前清理历史
     # 场景执行过程中可能积累了很多调试信息，在调优前清理掉
-    if algo_info:
-        reset_and_prime_coder(
-            coder, 
-            algo_info, 
-            stage_description=f"Hyperparameter Tuning for Scenario: {scenario_name}"
-        )
+    # if algo_info:  # 临时注释掉用于测试
+    #     reset_and_prime_coder(
+    #         coder, 
+    #         algo_info, 
+    #         stage_description=f"Hyperparameter Tuning for Scenario: {scenario_name}"
+    #     )
     
     # Step 1: 读取baseline结果（现在应该在 baseline/ 子目录）
     run_dir = scenario_info.get("run_dir", f"run_{scenario_name}")
