@@ -2159,9 +2159,63 @@ def extract_tunable_parameters_from_code(folder_name):
         return {}
 
 
-def design_tuning_strategy_for_scenario(scenario_info, current_results, tunable_params, coder):
+def clean_json_from_response(text):
+    """
+    从 AI 响应中清理并提取纯 JSON
+    
+    处理多种格式：
+    - 代码块包裹的 JSON
+    - 包含 diff 标记的响应
+    - 纯 JSON 对象
+    """
+    import re
+    
+    # 1. 移除 diff 标记
+    if '<<<<<<< SEARCH' in text or '=======' in text or '>>>>>>> REPLACE' in text:
+        # 提取 ======= 和 >>>>>>> 之间的内容
+        match = re.search(r'=======\s*(.*?)\s*>>>>>>>', text, re.DOTALL)
+        if match:
+            text = match.group(1).strip()
+    
+    # 2. 移除代码块标记
+    text = re.sub(r'```json\s*', '', text)
+    text = re.sub(r'```\s*', '', text)
+    
+    # 3. 提取 JSON 对象（支持嵌套）
+    # 使用更健壮的方法：从第一个 { 开始，匹配完整的 JSON
+    stack = []
+    start_idx = -1
+    
+    for i, char in enumerate(text):
+        if char == '{':
+            if not stack:
+                start_idx = i
+            stack.append(char)
+        elif char == '}':
+            if stack and stack[-1] == '{':
+                stack.pop()
+                if not stack and start_idx != -1:
+                    # 找到完整的 JSON 对象
+                    return text[start_idx:i+1]
+    
+    # 如果上面的方法失败，使用正则
+    match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', text, re.DOTALL)
+    if match:
+        return match.group().strip()
+    
+    return None
+
+
+def design_tuning_strategy_for_scenario(scenario_info, current_results, tunable_params, coder, folder_name=None):
     """
     让 AI 为当前场景设计参数调优搜索空间（用于随机搜索）
+    
+    参数:
+        scenario_info: 场景信息
+        current_results: 当前基线结果
+        tunable_params: 可调参数列表
+        coder: Aider Coder 对象
+        folder_name: 实验文件夹路径（用于保存调试日志）
     
     返回: {"search_space": {...}, "rationale": str, "num_trials": int}
     """
@@ -2223,45 +2277,55 @@ Select 2-4 key parameters to tune and define their search ranges for Random Sear
 
 IMPORTANT:
 - Return ONLY valid JSON, no extra text
+- DO NOT include file editing instructions or diff markers (<<<<<<< SEARCH, =======, >>>>>>> REPLACE)
+- DO NOT wrap JSON in code blocks or create new files
+- Just output the raw JSON object directly
 - Search ranges should be informed by baseline performance and scenario characteristics
 - For subspace-based algorithms, consider including subspace_dim, momentum as tunable parameters if available
 - num_trials should be 8-15 (balancing exploration vs computational cost)
+
+**Example Response Format (output this EXACTLY, no other text):**
+{{
+  "search_space": {{
+    "learning_rate": {{"type": "float", "min": 0.001, "max": 0.1, "scaling": "log"}}
+  }},
+  "rationale": "...",
+  "num_trials": 10,
+  "expected_improvement": "..."
+}}
 """
     
     print("🤖 AI 正在设计搜索空间...")
     ai_response = coder.run(prompt)
     
+    # 保存 AI 原始响应以便调试（如果提供了 folder_name）
+    if folder_name:
+        debug_file = osp.join(folder_name, f"debug_tuning_response_{scenario_info.get('name', 'unknown')}.txt")
+        try:
+            with open(debug_file, 'w', encoding='utf-8') as f:
+                f.write("=== AI 原始响应 ===\n")
+                f.write(ai_response)
+                f.write("\n\n=== 提示词 ===\n")
+                f.write(prompt)
+            print(f"   💾 调试信息已保存到: {debug_file}")
+        except Exception as e:
+            print(f"   ⚠️ 保存调试信息失败: {e}")
+    
     # 解析 AI 响应
     try:
         import re
         
-        # 尝试提取 JSON
-        json_str = None
-        
-        # 方法1: 提取 ```json ... ``` 代码块
-        json_match = re.search(r'```json\s*(.*?)\s*```', ai_response, re.DOTALL)
-        if json_match:
-            json_str = json_match.group(1).strip()
-        
-        # 方法2: 提取 ``` ... ``` 代码块（无 json 标记）
-        if not json_str:
-            json_match = re.search(r'```\s*(.*?)\s*```', ai_response, re.DOTALL)
-            if json_match:
-                potential_json = json_match.group(1).strip()
-                if potential_json.startswith('{'):
-                    json_str = potential_json
-        
-        # 方法3: 查找完整的 JSON 对象
-        if not json_str:
-            json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', ai_response, re.DOTALL)
-            if json_match:
-                json_str = json_match.group().strip()
+        # 使用新的清理函数
+        json_str = clean_json_from_response(ai_response)
         
         # 如果没有提取到任何 JSON
         if not json_str:
             print("❌ 无法从 AI 响应中提取 JSON")
-            print(f"AI 响应前 200 字符: {ai_response[:200]}")
+            print(f"AI 响应前 500 字符: {ai_response[:500]}")
+            print(f"\n完整响应已保存到调试文件，请检查")
             return None
+        
+        print(f"   ✓ 成功提取 JSON ({len(json_str)} 字符)")
         
         # 尝试解析 JSON
         strategy = json.loads(json_str)
@@ -2321,7 +2385,7 @@ def tune_scenario_immediately(folder_name, scenario_info, coder, algo_info=None)
     # 3. Design Tuning Strategy (now returns search_space instead of fixed configs)
     print(f"🤖 AI designing tuning strategy...")
     strategy = design_tuning_strategy_for_scenario(
-        scenario_info, baseline_results, tunable_params, coder
+        scenario_info, baseline_results, tunable_params, coder, folder_name
     )
     
     if not strategy or not strategy.get("search_space"):
