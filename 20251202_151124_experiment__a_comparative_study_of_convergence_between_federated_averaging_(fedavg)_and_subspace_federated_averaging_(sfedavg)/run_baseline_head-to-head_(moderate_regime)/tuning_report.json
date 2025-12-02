@@ -1,0 +1,270 @@
+{
+  "best_config": {},
+  "best_result": {},
+  "all_results": [
+    {
+      "trial": 1,
+      "parameters": {
+        "learning_rate": 0.05288957723062363,
+        "num_iterations": 80,
+        "batch_size": 64,
+        "momentum": 0.8892046949063348,
+        "subspace_dim": 8,
+        "local_steps": 5,
+        "client_fraction": 0.3,
+        "num_clients": 30,
+        "dataset_size": 6000,
+        "input_dim": 10,
+        "n_classes": 3,
+        "use_momentum_projection": true,
+        "algo": "sfedavg",
+        "seed": 1
+      },
+      "metrics": {},
+      "status": "failure",
+      "error": "'Namespace' object has no attribute 'l2_reg'"
+    },
+    {
+      "trial": 2,
+      "parameters": {
+        "learning_rate": 0.011391134966050676,
+        "num_iterations": 80,
+        "batch_size": 64,
+        "momentum": 0.6399731187068879,
+        "subspace_dim": 31,
+        "local_steps": 10,
+        "client_fraction": 0.3,
+        "num_clients": 30,
+        "dataset_size": 6000,
+        "input_dim": 10,
+        "n_classes": 3,
+        "use_momentum_projection": true,
+        "algo": "sfedavg",
+        "seed": 1
+      },
+      "metrics": {},
+      "status": "failure",
+      "error": "'Namespace' object has no attribute 'l2_reg'"
+    },
+    {
+      "trial": 3,
+      "parameters": {
+        "learning_rate": 0.006890507817637346,
+        "num_iterations": 80,
+        "batch_size": 64,
+        "momentum": 0.6123952449978955,
+        "subspace_dim": 21,
+        "local_steps": 3,
+        "client_fraction": 0.3,
+        "num_clients": 30,
+        "dataset_size": 6000,
+        "input_dim": 10,
+        "n_classes": 3,
+        "use_momentum_projection": true,
+        "algo": "sfedavg",
+        "seed": 1
+      },
+      "metrics": {},
+      "status": "failure",
+      "error": "'Namespace' object has no attribute 'l2_reg'"
+    },
+    {
+      "trial": 4,
+      "parameters": {
+        "learning_rate": 0.01120059660937136,
+        "num_iterations": 80,
+        "batch_size": 64,
+        "momentum": 0.8347873043294923,
+        "subspace_dim": 24,
+        "local_steps": 10,
+        "client_fraction": 0.3,
+        "num_clients": 30,
+        "dataset_size": 6000,
+        "input_dim": 10,
+        "n_classes": 3,
+        "use_momentum_projection": true,
+        "algo": "sfedavg",
+        "seed": 1
+      },
+      "metrics": {},
+      "status": "failure",
+      "error": "'Namespace' object has no attribute 'l2_reg'"
+    },
+    {
+      "trial": 5,
+      "parameters": {
+        "learning_rate": 0.01041165692633777,
+        "num_iterations": 80,
+        "batch_size": 64,
+        "momentum": 0.873516739700192,
+        "subspace_dim": 28,
+        "local_steps": 8,
+        "client_fraction": 0.3,
+        "num_clients": 30,
+        "dataset_size": 6000,
+        "input_dim": 10,
+        "n_classes": 3,
+        "use_momentum_projection": true,
+        "algo": "sfedavg",
+        "seed": 1
+      },
+      "metrics": {},
+      "status": "failure",
+      "error": "'Namespace' object has no attribute 'l2_reg'"
+    },
+    {
+      "trial": 6,
+      "parameters": {
+        "learning_rate": 0.011275325948537942,
+        "num_iterations": 80,
+        "batch_size": 64,
+        "momentum": 0.7084943762099585,
+        "subspace_dim": 26,
+        "local_steps": 2,
+        "client_fraction": 0.3,
+        "num_clients": 30,
+        "dataset_size": 6000,
+        "input_dim": 10,
+        "n_classes": 3,
+        "use_momentum_projection": true,
+        "algo": "sfedavg",
+        "seed": 1
+      },
+      "metrics": {},
+      "status": "failure",
+      "error": "'Namespace' object has no attribute 'l2_reg'"
+    },
+    {
+      "trial": 7,
+      "parameters": {
+        "learning_rate": 0.08215328394502522,
+        "num_iterations": 80,
+        "batch_size": 64,
+        "momentum": 0.8722743640454085,
+        "subspace_dim": 13,
+        "local_steps": 7,
+        "client_fraction": 0.3,
+        "num_clients": 30,
+        "dataset_size": 6000,
+        "input_dim": 10,
+        "n_classes": 3,
+        "use_momentum_projection": true,
+        "algo": "sfedavg",
+        "seed": 1
+      },
+      "metrics": {},
+      "status": "failure",
+      "error": "'Namespace' object has no attribute 'l2_reg'"
+    },
+    {
+      "trial": 8,
+      "parameters": {
+        "learning_rate": 0.013935949489108968,
+        "num_iterations": 80,
+        "batch_size": 64,
+        "momentum": 0.9733130981606446,
+        "subspace_dim": 14,
+        "local_steps": 7,
+        "client_fraction": 0.3,
+        "num_clients": 30,
+        "dataset_size": 6000,
+        "input_dim": 10,
+        "n_classes": 3,
+        "use_momentum_projection": true,
+        "algo": "sfedavg",
+        "seed": 1
+      },
+      "metrics": {},
+      "status": "failure",
+      "error": "'Namespace' object has no attribute 'l2_reg'"
+    },
+    {
+      "trial": 9,
+      "parameters": {
+        "learning_rate": 0.007289823259496261,
+        "num_iterations": 80,
+        "batch_size": 64,
+        "momentum": 0.6377193869650509,
+        "subspace_dim": 20,
+        "local_steps": 7,
+        "client_fraction": 0.3,
+        "num_clients": 30,
+        "dataset_size": 6000,
+        "input_dim": 10,
+        "n_classes": 3,
+        "use_momentum_projection": true,
+        "algo": "sfedavg",
+        "seed": 1
+      },
+      "metrics": {},
+      "status": "failure",
+      "error": "'Namespace' object has no attribute 'l2_reg'"
+    },
+    {
+      "trial": 10,
+      "parameters": {
+        "learning_rate": 0.04636340512729998,
+        "num_iterations": 80,
+        "batch_size": 64,
+        "momentum": 0.6169456727400079,
+        "subspace_dim": 33,
+        "local_steps": 9,
+        "client_fraction": 0.3,
+        "num_clients": 30,
+        "dataset_size": 6000,
+        "input_dim": 10,
+        "n_classes": 3,
+        "use_momentum_projection": true,
+        "algo": "sfedavg",
+        "seed": 1
+      },
+      "metrics": {},
+      "status": "failure",
+      "error": "'Namespace' object has no attribute 'l2_reg'"
+    },
+    {
+      "trial": 11,
+      "parameters": {
+        "learning_rate": 0.036144279827729796,
+        "num_iterations": 80,
+        "batch_size": 64,
+        "momentum": 0.6307320772505987,
+        "subspace_dim": 20,
+        "local_steps": 6,
+        "client_fraction": 0.3,
+        "num_clients": 30,
+        "dataset_size": 6000,
+        "input_dim": 10,
+        "n_classes": 3,
+        "use_momentum_projection": true,
+        "algo": "sfedavg",
+        "seed": 1
+      },
+      "metrics": {},
+      "status": "failure",
+      "error": "'Namespace' object has no attribute 'l2_reg'"
+    },
+    {
+      "trial": 12,
+      "parameters": {
+        "learning_rate": 0.10659234914607574,
+        "num_iterations": 80,
+        "batch_size": 64,
+        "momentum": 0.9453261816953547,
+        "subspace_dim": 27,
+        "local_steps": 7,
+        "client_fraction": 0.3,
+        "num_clients": 30,
+        "dataset_size": 6000,
+        "input_dim": 10,
+        "n_classes": 3,
+        "use_momentum_projection": true,
+        "algo": "sfedavg",
+        "seed": 1
+      },
+      "metrics": {},
+      "status": "failure",
+      "error": "'Namespace' object has no attribute 'l2_reg'"
+    }
+  ]
+}

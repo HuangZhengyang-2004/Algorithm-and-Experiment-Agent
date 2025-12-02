@@ -2542,6 +2542,13 @@ Generate the complete `tune_experiment.py` file code implementing Random Search 
             report_file = osp.join(scenario_dir, "tuning_report.json")
             with open(report_file, 'w', encoding='utf-8') as f:
                 json.dump(summary, f, indent=2)
+            
+            # 📄 Save tune_experiment.py to scenario directory (code snapshot)
+            tune_script_src = osp.join(cwd, "tune_experiment.py")
+            if osp.exists(tune_script_src):
+                tune_script_dst = osp.join(scenario_dir, "tune_experiment.py")
+                shutil.copy(tune_script_src, tune_script_dst)
+                print(f"   📄 已保存 tune_experiment.py 快照到场景目录")
                 
             return summary
             

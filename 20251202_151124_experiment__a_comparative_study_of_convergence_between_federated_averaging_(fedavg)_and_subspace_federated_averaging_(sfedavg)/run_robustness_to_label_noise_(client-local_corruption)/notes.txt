@@ -1,0 +1,16 @@
+# Title: Experiment: A Comparative Study of Convergence between Federated Averaging (FedAvg) and Subspace Federated Averaging (SFedAvg)
+# Experiment description: Compare the convergence behavior of Federated Averaging (FedAvg) and Subspace Federated Averaging (SFedAvg) on a standard dataset (e.g., MNIST or CIFAR-10) under identical settings. Measure metrics such as training loss, test accuracy, and communication efficiency over multiple rounds of training.
+# Timestamp: 20251202_151124
+
+## Experiment Log
+
+baseline_head-to-head_(moderate_regime): Non-IID label-skew via contiguous label blocks across 30 clients (heterogeneous).
+No label noise added (0% flips); deterministic synthetic dataset with standardized features from a fixed teacher.
+Algorithm specifics: SFedAvg samples a new one-sided subspace P_t each round and applies momentum projection; FedAvg uses full space; both use identical hyperparameters and rolling client selection.
+Evaluation special: cumulative_comm_floats includes P_t transmission cost for SFedAvg in addition to model deltas, enabling fair communication comparison.
+
+heterogeneity_stress_(high_local_drift): Non-IID extreme label-skew via noniid_classes partition (classes_per_client=2) across 50 clients (heterogeneous).
+No label noise added (0% flips); deterministic synthetic dataset with standardized features from a fixed teacher.
+Algorithm specifics: high local drift with --local_steps 20 and --client_fraction 0.1; SFedAvg uses one-sided subspace (r=10) with momentum projection; FedAvg uses full space; deterministic rolling client selection.
+Evaluation special: cumulative_comm_floats accounts for P_t transmission in SFedAvg; intended to compare stability and early-round loss vs FedAvg under identical settings.
+

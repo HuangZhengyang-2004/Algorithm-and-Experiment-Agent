@@ -1,0 +1,26 @@
+# Title: Experiment: A Comparative Study of Convergence between Federated Averaging (FedAvg) and Subspace Federated Averaging (SFedAvg)
+# Experiment description: Compare the convergence behavior of Federated Averaging (FedAvg) and Subspace Federated Averaging (SFedAvg) on a standard dataset (e.g., MNIST or CIFAR-10) under identical settings. Measure metrics such as training loss, test accuracy, and communication efficiency over multiple rounds of training.
+# Timestamp: 20251202_151124
+
+## Experiment Log
+
+baseline_head-to-head_(moderate_regime): Non-IID label-skew via contiguous label blocks across 30 clients (heterogeneous).
+No label noise added (0% flips); deterministic synthetic dataset with standardized features from a fixed teacher.
+Algorithm specifics: SFedAvg samples a new one-sided subspace P_t each round and applies momentum projection; FedAvg uses full space; both use identical hyperparameters and rolling client selection.
+Evaluation special: cumulative_comm_floats includes P_t transmission cost for SFedAvg in addition to model deltas, enabling fair communication comparison.
+
+heterogeneity_stress_(high_local_drift): Non-IID extreme label-skew via noniid_classes partition (classes_per_client=2) across 50 clients (heterogeneous).
+No label noise added (0% flips); deterministic synthetic dataset with standardized features from a fixed teacher.
+Algorithm specifics: high local drift with --local_steps 20 and --client_fraction 0.1; SFedAvg uses one-sided subspace (r=10) with momentum projection; FedAvg uses full space; deterministic rolling client selection.
+Evaluation special: cumulative_comm_floats accounts for P_t transmission in SFedAvg; intended to compare stability and early-round loss vs FedAvg under identical settings.
+
+robustness_to_label_noise_(client-local_corruption): Non-IID via noniid_classes partition (classes_per_client=2) across 30 clients.
+Label noise: 20% label flips applied to 30% of clients (deterministically selected); remaining clients uncorrupted.
+Algorithm specifics: SFedAvg uses one-sided subspace (r=15) with momentum projection; FedAvg uses full space; identical hyperparameters and rolling client selection.
+Implementation note: Label corruption injected post-partition using per-client RNG; cumulative_comm_floats includes P_t transmission cost for SFedAvg as in other scenarios.
+
+scalability:_many_clients_and_higher-dimensional_model: Non-IID label-skew via noniid_classes (classes_per_client=2, majority_fraction=0.8) across 200 clients with balanced client sizes.
+No label noise added (0% flips); deterministic synthetic dataset; increased input_dim=30, n_classes=5 elevates model dimension D.
+Algorithm specifics: low local_steps 2 and client_fraction 0.1; SFedAvg uses one-sided subspace (r=30) with momentum projection; FedAvg uses full space; identical scheduling.
+Evaluation special: communication accounting scales with D and N; includes P_t transmission cost for SFedAvg to evaluate communication–convergence trade-offs versus FedAvg.
+

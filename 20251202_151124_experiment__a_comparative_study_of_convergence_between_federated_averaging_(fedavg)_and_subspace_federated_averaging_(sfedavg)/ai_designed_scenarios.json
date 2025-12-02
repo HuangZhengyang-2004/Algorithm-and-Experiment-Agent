@@ -1,0 +1,140 @@
+{
+  "scenarios": [
+    {
+      "name": "Baseline Head-to-Head (Moderate Regime)",
+      "description": "Directly compare FedAvg and SFedAvg under identical moderate settings to assess convergence speed, final accuracy, and communication efficiency.",
+      "parameters": {
+        "--learning_rate": 0.05,
+        "--num_iterations": 80,
+        "--batch_size": 64,
+        "--momentum": 0.9,
+        "--subspace_dim": 20,
+        "--local_steps": 5,
+        "--client_fraction": 0.3,
+        "--num_clients": 30,
+        "--dataset_size": 6000,
+        "--input_dim": 10,
+        "--n_classes": 3,
+        "--use_momentum_projection": true,
+        "--algo": "sfedavg",
+        "--seed": 1
+      },
+      "dataset": "Deterministic synthetic classification; non-iid label-skew partition across 30 clients via contiguous label blocks; run twice: once with --algo sfedavg (as specified) and once with --algo fedavg while keeping all other settings identical.",
+      "expected_insight": "SFedAvg should converge comparably or faster than FedAvg in early rounds due to projected momentum stabilization, with differing communication profiles; final accuracy should be similar if r is sufficiently large.",
+      "metrics": [
+        "train_loss",
+        "test_accuracy",
+        "cumulative_comm_floats"
+      ]
+    },
+    {
+      "name": "Heterogeneity Stress (High Local Drift)",
+      "description": "Evaluate stability and convergence when client updates are highly drift-prone by increasing local steps and reducing the client fraction.",
+      "parameters": {
+        "--learning_rate": 0.03,
+        "--num_iterations": 120,
+        "--batch_size": 32,
+        "--momentum": 0.9,
+        "--subspace_dim": 10,
+        "--local_steps": 20,
+        "--client_fraction": 0.1,
+        "--num_clients": 50,
+        "--dataset_size": 8000,
+        "--input_dim": 10,
+        "--n_classes": 3,
+        "--use_momentum_projection": true,
+        "--algo": "sfedavg",
+        "--seed": 2
+      },
+      "dataset": "Deterministic synthetic classification; extreme non-iid partition with clients each holding 1–2 dominant labels to maximize heterogeneity; compare to a repeat run with --algo fedavg.",
+      "expected_insight": "FedAvg is expected to exhibit oscillations or slower convergence under high drift, while SFedAvg with MP should mitigate drift by filtering updates through a lower-dimensional subspace, improving stability and early-round loss.",
+      "metrics": [
+        "train_loss",
+        "test_accuracy",
+        "cumulative_comm_floats"
+      ]
+    },
+    {
+      "name": "Robustness to Label Noise (Client-Local Corruption)",
+      "description": "Test sensitivity to noisy gradients by introducing label corruption on a subset of clients.",
+      "parameters": {
+        "--learning_rate": 0.05,
+        "--num_iterations": 100,
+        "--batch_size": 64,
+        "--momentum": 0.9,
+        "--subspace_dim": 15,
+        "--local_steps": 5,
+        "--client_fraction": 0.3,
+        "--num_clients": 30,
+        "--dataset_size": 6000,
+        "--input_dim": 10,
+        "--n_classes": 3,
+        "--use_momentum_projection": true,
+        "--algo": "sfedavg",
+        "--seed": 3
+      },
+      "dataset": "Deterministic synthetic classification; introduce 20% label flips on 30% of clients (selected deterministically) to simulate corrupted local updates; compare to a repeat run with --algo fedavg.",
+      "expected_insight": "SFedAvg should be more robust to corrupted updates by attenuating off-subspace noise through projection, yielding lower train loss and higher test accuracy than FedAvg under the same noise.",
+      "metrics": [
+        "train_loss",
+        "test_accuracy",
+        "cumulative_comm_floats"
+      ]
+    },
+    {
+      "name": "Scalability: Many Clients and Higher-Dimensional Model",
+      "description": "Assess behavior as the number of clients and model dimensionality increase, focusing on convergence and communication scaling.",
+      "parameters": {
+        "--learning_rate": 0.05,
+        "--num_iterations": 100,
+        "--batch_size": 128,
+        "--momentum": 0.9,
+        "--subspace_dim": 30,
+        "--local_steps": 2,
+        "--client_fraction": 0.1,
+        "--num_clients": 200,
+        "--dataset_size": 30000,
+        "--input_dim": 30,
+        "--n_classes": 5,
+        "--use_momentum_projection": true,
+        "--algo": "sfedavg",
+        "--seed": 4
+      },
+      "dataset": "Deterministic synthetic classification; non-iid label-skew across 200 clients with balanced client sizes but differing dominant labels.",
+      "expected_insight": "With larger D and N, SFedAvg may retain stable convergence with reduced effective update dimension, while highlighting the trade-off between projector communication and convergence benefits versus FedAvg.",
+      "metrics": [
+        "train_loss",
+        "test_accuracy",
+        "cumulative_comm_floats"
+      ]
+    },
+    {
+      "name": "Edge Cases for Subspace and Momentum",
+      "description": "Validate correctness and limits by testing degenerate subspace dimensions and momentum extremes.",
+      "parameters": {
+        "--learning_rate": 0.05,
+        "--num_iterations": 40,
+        "--batch_size": 64,
+        "--momentum": 0.9,
+        "--subspace_dim": 0,
+        "--local_steps": 5,
+        "--client_fraction": 0.5,
+        "--num_clients": 20,
+        "--dataset_size": 4000,
+        "--input_dim": 10,
+        "--n_classes": 3,
+        "--use_momentum_projection": true,
+        "--algo": "sfedavg",
+        "--seed": 5
+      },
+      "dataset": "Deterministic synthetic classification; run two sub-runs: (a) SFedAvg with --subspace_dim 0 (expect no updates due to zero projector) and (b) SFedAvg with --subspace_dim 33 (i.e., full dimension D for input_dim=10, n_classes=3), plus a FedAvg run for equivalence check.",
+      "expected_insight": "(a) r=0 should produce flat metrics, verifying one-sided projection behavior; (b) r=D should match FedAvg updates and convergence, confirming that SFedAvg recovers FedAvg in the full-subspace limit; differences with momentum settings (e.g., --momentum 0.0 vs 0.99) reveal sensitivity.",
+      "metrics": [
+        "train_loss",
+        "test_accuracy",
+        "cumulative_comm_floats"
+      ]
+    }
+  ],
+  "rationale": "These scenarios are anchored to the algorithm’s core operations: subspace sampling P_t, one-sided projection Pi_t, momentum projection, client subsampling, and aggregation. The baseline head-to-head establishes parity and communication trade-offs. The heterogeneity stress isolates the effect of large local drift on convergence stability. The robustness scenario probes the algorithm’s ability to suppress noisy update directions via projection. The scalability setup examines behavior as N and model dimension grow, exposing communication–convergence trade-offs intrinsic to sending P_t and deltas. The edge-case scenario validates theoretical limits (r=0 and r=D) and momentum sensitivity, ensuring the implementation adheres to the pseudocode’s logical boundaries."
+}
