@@ -477,12 +477,8 @@ def generate_scenario_design_prompt(algorithm_info, existing_results=None):
     (idea["Experiment"]) MAY be used as a reference for dataset preferences, constraints,
     or evaluation priorities, but DO NOT use it as the primary source of scenario design.
 
-    The prompt asks for 3 scenarios covering heterogeneity, robustness, scalability,
+    The prompt asks for 3-5 scenarios covering heterogeneity, robustness, scalability,
     and hyperparameter sensitivity, and requests output in a strict JSON format.
-
-    CHANGED: Require that EVERY scenario is explicitly a comparison between SFedAvg (SfedAvg)
-    and FedAvg. Each scenario must include per-algorithm parameter settings and specify
-    which metrics will be compared.
     """
     title = algorithm_info.get('title', 'Unknown Algorithm')
     pseudocode = algorithm_info.get('pseudocode', '').strip()
@@ -510,29 +506,23 @@ Available command-line parameters (if any):
 {params_str}
 
 Your task:
-Produce 3 well-motivated experimental scenarios that thoroughly evaluate the algorithm.
-CRITICAL REQUIREMENT: EACH scenario MUST be an explicit COMPARISON between FedAvg and SFedAvg (also accept 'SfedAvg' spelling).
-For every scenario you design, include separate parameter settings and experiment details for BOTH algorithms and specify the comparison metrics and expected relative behavior.
-
-For each scenario include:
+Produce 3 to 5 well-motivated experimental scenarios that thoroughly evaluate the algorithm.
+Each scenario must include:
 - A concise scenario name
 - A one-sentence objective describing what aspect is tested
 - Specific command-line parameter settings (use only the available parameters above; if none, propose sensible parameter names and values)
-- A dataset description or data modification (e.g., Non-IID splits, label noise, varying dataset sizes)
-- A per-algorithm configuration block specifying any algorithm-specific parameters (e.g., for SFedAvg: --subspace_dim, --local_steps; for FedAvg: --local_steps, --client_fraction). If a parameter is shared, indicate whether values are identical or different.
-- The expected outcome / insight comparing SFedAvg vs FedAvg (which should perform better, in what metric, and why)
-- Specific metrics and plots to produce (must enable direct FedAvg vs SFedAvg comparison)
+- A short description of the dataset or data modifications to use (e.g., heterogeneity across clients, added label noise, different data sizes)
+- The expected outcome or insight
+- Any special evaluation metrics or plots that should be produced
 
-Ensure the set of scenarios collectively covers:
-- Heterogeneity: performance when data distributions differ across clients (Non-IID)
-- Robustness: sensitivity to label noise, outliers, or corrupted data
-- Scalability: behavior with increasing dataset size, number of clients, or model capacity
-- Hyperparameter sensitivity: learning_rate, local_steps, subspace_dim, client_fraction, etc.
-- Edge cases: extreme settings that reveal failure modes
+Ensure the set of scenarios collectively covers (but is not limited to):
+- Heterogeneity: performance when data distributions differ across splits/clients
+- Robustness: sensitivity to noise, outliers, or corrupted labels
+- Scalability: behavior with increasing dataset size or model capacity
+- Hyperparameter sensitivity: learning rate, number of iterations, regularization, etc.
+- Edge cases: extreme settings that may reveal failure modes
 
-Output format (MUST be valid JSON). Provide only JSON in your response (no extra explanation).
-
-The JSON schema MUST include per-scenario a 'comparison' object describing both algorithms, for example:
+Output format (MUST be valid JSON). Provide only JSON in your response (no extra explanation):
 
 {{
   "scenarios": [
@@ -540,32 +530,13 @@ The JSON schema MUST include per-scenario a 'comparison' object describing both 
       "name": "scenario_name",
       "description": "brief description of what this scenario tests",
       "parameters": {{
-        "--dataset_size": 1000,
         "--learning_rate": 0.01,
-        "--num_iterations": 100
+        "--num_iterations": 100,
+        "--dataset_size": 1000
       }},
       "dataset": "brief description of dataset / data modifications",
-      "comparison": {{
-        "FedAvg": {{
-          "parameters": {{
-            "--algorithm": "FedAvg",
-            "--local_steps": 5,
-            "--client_fraction": 0.5
-          }}
-        }},
-        "SFedAvg": {{
-          "parameters": {{
-            "--algorithm": "SFedAvg",
-            "--subspace_dim": 10,
-            "--local_steps": 5,
-            "--client_fraction": 0.5
-          }}
-        }},
-        "notes": "Specify if any parameter differs between the two runs or if they use identical shared params"
-      }},
-      "expected_insight": "what you expect to observe when comparing SFedAvg vs FedAvg",
-      "metrics": ["test_accuracy", "train_loss", "communication_rounds"],
-      "plots": ["convergence_curve", "bar_comparison_final_accuracy"]
+      "expected_insight": "what you expect to observe",
+      "metrics": ["metric1", "metric2"]
     }}
   ],
   "rationale": "Short explanation why these scenarios were chosen and how they complement each other"
