@@ -2235,20 +2235,255 @@ def clean_json_from_response(text):
     return None
 
 
-def design_tuning_strategy_for_scenario(scenario_info, current_results, tunable_params, coder, folder_name=None):
+def analyze_algorithm_characteristics(scenario_info, tunable_params, algo_info, coder, scenario_dir, folder_name):
     """
-    让 AI 为当前场景设计参数调优搜索空间（用于随机搜索）
+    让 LLM 深度分析算法特性和调优需求（第一阶段：智能分析）
+    
+    参数:
+        scenario_info: 场景信息
+        tunable_params: 可调参数列表
+        algo_info: 算法信息（从 algorithm.tex 或 idea.json 提取）
+        coder: Aider Coder 对象
+        scenario_dir: 场景目录（保存分析报告）
+        folder_name: 实验文件夹路径（读取 experiment.py）
+    
+    返回: {
+        "key_parameters": [...],  # 关键参数及其约束
+        "ablation_required": [...],  # 需要消融实验的参数
+        "parameter_constraints": {...},  # 参数约束（如 subspace_dim >= 0.25 * input_dim）
+        "task_suitability": str,  # 任务适配性分析
+        "tuning_strategy": str  # 推荐的调优策略
+    }
+    """
+    print(f"\n{'='*80}")
+    print("🧠 阶段1: LLM 自主分析算法特性和调优需求")
+    print(f"{'='*80}\n")
+    
+    # 读取实际的实验代码
+    exp_file = osp.join(folder_name, "experiment.py")
+    experiment_code = ""
+    if osp.exists(exp_file):
+        with open(exp_file, 'r', encoding='utf-8') as f:
+            experiment_code = f.read()
+        print(f"   ✓ 已读取 experiment.py ({len(experiment_code)} 字符)")
+    else:
+        print(f"   ⚠️ 未找到 experiment.py")
+    
+    # 构建分析提示词
+    analysis_prompt = f"""You are an expert in federated learning and hyperparameter optimization. 
+Your task is to analyze this algorithm implementation and provide strategic insights for parameter tuning.
+
+# Algorithm Description (from algorithm.tex)
+{algo_info.get('description', 'No description available')}
+
+# Actual Experiment Implementation
+Below is the complete experiment.py code that implements the algorithm:
+
+```python
+{experiment_code[:15000]}  # 限制长度避免超过 token 限制
+```
+
+**IMPORTANT: Analyze the ACTUAL CODE to understand:**
+- What dataset is being used (synthetic classification/regression, MNIST, CIFAR, etc.)
+- Problem complexity (binary/multi-class classification, regression, feature dimensions)
+- Data distribution (IID or Non-IID)
+- Whether there's label noise
+- Gradient space complexity (low-rank binary classification vs. high-rank multi-class/regression)
+
+# Current Scenario Context
+Name: {scenario_info.get('name', 'Unknown')}
+Description: {scenario_info.get('description', '')}
+Parameters: {json.dumps(scenario_info.get('parameters', {}), indent=2)}
+
+# Available Tunable Parameters
+{json.dumps(tunable_params, indent=2)}
+
+# Your Analysis Tasks
+
+## 1. Task Complexity Assessment (CRITICAL!)
+From the experiment code, determine:
+- Dataset type: classification (how many classes?) or regression?
+- Feature dimensions: How many input features?
+- Data distribution: IID or Non-IID (label skew)?
+- Label noise: Is there any?
+
+**Most Important**: Assess gradient space complexity:
+- Binary classification (2 classes): LOW complexity, simple decision boundary, low effective gradient dimension
+- Multi-class (3-4 classes): MEDIUM complexity
+- Multi-class (≥5 classes): MEDIUM-HIGH complexity, richer gradient space
+- Regression: HIGH complexity, full-rank gradient space
+
+## 2. Algorithm-Task Compatibility Analysis
+Based on the algorithm's core mechanism and the task complexity:
+- Does the task have sufficient complexity for this algorithm to show benefits?
+- Red flags: Compression algorithms on low-rank problems (e.g., SFedAvg on binary classification)
+- Green lights: Complex tasks that can benefit from the algorithm's mechanism
+
+## 3. Key Parameter Identification
+For EACH tunable parameter, identify:
+- Is it a CRITICAL parameter (core to algorithm mechanism)?
+- Is it IMPORTANT (significant impact on performance)?
+- Is it MINOR (fine-tuning only)?
+
+## 4. Parameter Constraint Analysis
+For critical parameters, derive mathematical/physical constraints FROM ALGORITHM THEORY:
+- Example: "subspace_dim should be >= 0.25 * input_dim to preserve gradient information (Johnson-Lindenstrauss lemma)"
+- Example: "momentum should be < 1.0 for convergence stability"
+- Example: "local_steps should balance communication efficiency and gradient staleness"
+
+**Think about the algorithm's THEORETICAL PROPERTIES to derive these constraints!**
+
+## 5. Ablation Study Requirements
+Which parameters MUST be systematically tested?
+- Parameters that directly control the algorithm's core mechanism
+- For compression algorithms: compression ratio, subspace dimension
+- Recommend specific test points based on input dimensions (e.g., δ = 0.25, 0.50, 0.75, 1.00)
+
+## 6. Tuning Strategy Recommendation
+Based on your analysis:
+- Should we do ablation study first or direct random search?
+- What's the priority order of parameters to tune?
+- Any parameter interactions to consider?
+- If task is not suitable for algorithm, how to adjust?
+
+# Output Format (JSON ONLY, NO OTHER TEXT)
+
+Please output a JSON object with this EXACT structure:
+
+{{
+  "task_analysis": {{
+    "dataset_type": "binary_classification|multi_class_classification|regression",
+    "n_classes": number or null,
+    "input_dim": number,
+    "data_distribution": "IID|Non-IID",
+    "gradient_space_complexity": "low|medium|high",
+    "complexity_rationale": "Explain why this complexity level"
+  }},
+  "algorithm_mechanism": "Brief description of core mechanism",
+  "key_parameters": [
+    {{
+      "name": "parameter_name",
+      "priority": "critical|important|minor",
+      "reason": "Why this parameter is important",
+      "constraints": {{
+        "type": "ratio|absolute|categorical",
+        "min": value or null,
+        "max": value or null,
+        "recommended_values": [list of specific values to test],
+        "constraint_description": "Mathematical/physical constraint explanation with theoretical basis"
+      }},
+      "ablation_required": true or false
+    }}
+  ],
+  "task_suitability": {{
+    "is_suitable": true or false,
+    "confidence": "high|medium|low",
+    "reason": "Why suitable or not, considering BOTH algorithm mechanism AND actual task complexity from code",
+    "recommendations": "Specific suggestions for improvement if not suitable"
+  }},
+  "tuning_strategy": {{
+    "approach": "ablation_first|random_search|mixed",
+    "rationale": "Why this approach based on algorithm properties and task",
+    "parameter_priority": ["param1", "param2", "..."]
+  }},
+  "special_notes": "Any other important considerations based on the actual implementation"
+}}
+
+**CRITICAL REQUIREMENTS:**
+1. Output PURE JSON only - no markdown, no code blocks, no explanations outside JSON
+2. MUST analyze the actual experiment.py code to assess task complexity
+3. Think deeply about algorithm-task compatibility (e.g., compression on low-rank problems is problematic)
+4. Be specific with numerical constraints computed from actual input dimensions
+5. Base constraints on THEORY (e.g., information theory, optimization theory), not just heuristics
+
+Now, please provide your analysis:
+
+**CRITICAL REQUIREMENTS:**
+1. Output PURE JSON only - no markdown, no code blocks, no explanations outside JSON
+2. Think deeply about the algorithm's theoretical properties
+3. Be specific with numerical constraints (not vague ranges)
+4. If you identify parameters like "subspace_dim" or "compression_ratio", compute their valid ranges based on input dimensions
+
+Now, please provide your analysis:"""
+    
+    print("🤖 正在让 LLM 分析算法特性...")
+    
+    # 使用聊天模式获取分析（不修改文件）
+    try:
+        # 临时使用 coder 的聊天功能
+        response = coder.run(analysis_prompt)
+        
+        # 保存原始响应
+        debug_file = osp.join(scenario_dir, "algorithm_analysis_raw.txt")
+        with open(debug_file, 'w', encoding='utf-8') as f:
+            f.write(response)
+        print(f"   📄 原始分析已保存: {debug_file}")
+        
+        # 清理并解析 JSON
+        cleaned_response = clean_json_from_response(response)
+        
+        if not cleaned_response:
+            raise ValueError("无法从 AI 响应中提取 JSON")
+        
+        analysis = json.loads(cleaned_response)
+        
+        # 保存格式化的分析报告
+        report_file = osp.join(scenario_dir, "algorithm_analysis.json")
+        with open(report_file, 'w', encoding='utf-8') as f:
+            json.dump(analysis, f, indent=2, ensure_ascii=False)
+        print(f"   ✅ 分析报告已保存: {report_file}")
+        
+        # 打印关键发现
+        print(f"\n📊 分析结果摘要:")
+        print(f"   算法机制: {analysis.get('algorithm_mechanism', 'N/A')}")
+        print(f"   任务适配性: {'✅ 合适' if analysis.get('task_suitability', {}).get('is_suitable', False) else '⚠️ 不太合适'}")
+        print(f"   推荐策略: {analysis.get('tuning_strategy', {}).get('approach', 'N/A')}")
+        
+        critical_params = [p for p in analysis.get('key_parameters', []) 
+                          if p.get('priority') == 'critical']
+        if critical_params:
+            print(f"   关键参数: {', '.join([p['name'] for p in critical_params])}")
+        
+        return analysis
+        
+    except json.JSONDecodeError as e:
+        print(f"❌ JSON 解析失败: {e}")
+        print(f"   清理后的响应: {cleaned_response[:500]}")
+        return None
+    except Exception as e:
+        print(f"❌ 分析失败: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def design_tuning_strategy_for_scenario(scenario_info, current_results, tunable_params, algorithm_analysis, coder, scenario_dir):
+    """
+    让 AI 为当前场景设计参数调优搜索空间（第二阶段：基于分析设计调优）
     
     参数:
         scenario_info: 场景信息
         current_results: 当前基线结果
         tunable_params: 可调参数列表
+        algorithm_analysis: 第一阶段的算法分析结果
         coder: Aider Coder 对象
-        folder_name: 实验文件夹路径（用于保存调试日志）
+        scenario_dir: 场景目录（保存调试日志）
     
-    返回: {"search_space": {...}, "rationale": str, "num_trials": int}
+    返回: {"search_space": {...}, "rationale": str, "num_trials": int, "ablation_configs": [...]}
     """
-    prompt = f"""You are an expert in hyperparameter optimization. Design a Search Space for Random Search hyperparameter tuning.
+    print(f"\n{'='*80}")
+    print("🎯 阶段2: 基于算法分析设计调优策略")
+    print(f"{'='*80}\n")
+    
+    # 提取关键信息
+    task_suitable = algorithm_analysis.get('task_suitability', {}).get('is_suitable', True) if algorithm_analysis else True
+    tuning_approach = algorithm_analysis.get('tuning_strategy', {}).get('approach', 'random_search') if algorithm_analysis else 'random_search'
+    
+    # 构建增强的提示词
+    prompt = f"""You are an expert in hyperparameter optimization. Design a comprehensive tuning strategy based on the algorithm analysis.
+
+# Previous Algorithm Analysis (Phase 1 Results)
+{json.dumps(algorithm_analysis, indent=2) if algorithm_analysis else "No analysis available"}
 
 # Scenario Information
 Name: {scenario_info.get('name', 'Unknown')}
@@ -2257,174 +2492,273 @@ Description: {scenario_info.get('description', '')}
 # Current Performance (Baseline)
 {json.dumps(current_results, indent=2)}
 
-# Available Parameters
+# Available Tunable Parameters
 {json.dumps(tunable_params, indent=2)}
 
-# Your Task
-Select 2-4 key parameters to tune and define their search ranges for Random Search.
+# Your Task: Design TWO-STAGE Tuning Strategy
 
-## Parameter Type Specifications
+## Stage 1: Ablation Study (if needed)
+Based on the algorithm analysis, if any parameters are marked as "ablation_required":
+- Design specific test configurations for systematic parameter exploration
+- For example: if subspace_dim needs ablation, test δ = [0.25, 0.50, 0.75, 1.00]
 
-### For Float Parameters:
-- Specify: `{{"type": "float", "min": <value>, "max": <value>, "scaling": "linear" or "log"}}`
-- Use "log" scaling for parameters that span orders of magnitude (e.g., learning_rate: 0.0001 to 0.1)
-- Use "linear" for parameters with narrow ranges
-
-### For Integer Parameters:
-- Specify: `{{"type": "int", "min": <value>, "max": <value>}}`
-- Examples: num_layers, num_iterations, batch_size
-
-### For Categorical Parameters:
-- Specify: `{{"type": "categorical", "values": [val1, val2, ...]}}`
-- Examples: activation_function, optimizer
-
-## Requirements
-1. Select 2-4 parameters that are most likely to affect performance in THIS scenario
-2. For each parameter, define appropriate search range based on its current value and expected impact
-3. Choose appropriate scaling (linear vs log) for continuous parameters
-4. Recommend number of random trials (typically 8-15)
-
-**CRITICAL: Prioritize algorithm-specific parameters!**
-- For subspace-based algorithms: ALWAYS include `subspace_dim` or similar if available
-- For momentum-based methods: Include `momentum` coefficient if available
-- For federated learning: Consider `local_steps`, `client_fraction`, `batch_size`
-- Learning rate is important but not the only parameter to tune!
-
-## Output Format (MUST be valid JSON)
-```json
+Output format for ablation:
 {{
-  "search_space": {{
-    "learning_rate": {{"type": "float", "min": 0.001, "max": 0.2, "scaling": "log"}},
-    "batch_size": {{"type": "categorical", "values": [32, 64, 128]}},
-    "num_layers": {{"type": "int", "min": 1, "max": 5}}
-  }},
-  "rationale": "Explanation of why these parameters and ranges were chosen for THIS scenario",
-  "num_trials": 10,
-  "expected_improvement": "What improvement we expect to see with optimized parameters"
+  "ablation_required": true/false,
+  "ablation_configs": [
+    {{
+      "config_name": "descriptive_name",
+      "parameters": {{"param1": value1, "param2": value2}},
+      "rationale": "Why test this configuration"
+    }}
+  ]
 }}
-```
 
-IMPORTANT:
-- Return ONLY valid JSON, no extra text
-- DO NOT include file editing instructions or diff markers (<<<<<<< SEARCH, =======, >>>>>>> REPLACE)
-- DO NOT wrap JSON in code blocks or create new files
-- Just output the raw JSON object directly
-- Search ranges should be informed by baseline performance and scenario characteristics
-- For subspace-based algorithms, consider including subspace_dim, momentum as tunable parameters if available
-- num_trials should be 8-15 (balancing exploration vs computational cost)
+## Stage 2: Random Search (always needed)
+Design a search space for 2-4 most impactful parameters:
 
-**Example Response Format (output this EXACTLY, no other text):**
+### Parameter Type Specifications:
+- Float: {{"type": "float", "min": value, "max": value, "scaling": "linear"|"log"}}
+- Integer: {{"type": "int", "min": value, "max": value}}
+- Categorical: {{"type": "categorical", "values": [...]}}
+
+### CRITICAL REQUIREMENTS from Algorithm Analysis:
+{_format_algorithm_constraints(algorithm_analysis) if algorithm_analysis else "Use general best practices"}
+
+**IMPORTANT:**
+1. RESPECT the parameter constraints from Phase 1 analysis
+2. If task is NOT suitable for algorithm, recommend wider search ranges or parameter adjustments
+3. For ratio-based parameters (like subspace_dim), compute actual values based on input dimensions
+4. Prioritize parameters identified as "critical" in Phase 1
+
+## Complete Output Format (JSON ONLY)
+
 {{
-  "search_space": {{
-    "learning_rate": {{"type": "float", "min": 0.001, "max": 0.1, "scaling": "log"}}
+  "ablation_study": {{
+    "required": true/false,
+    "configs": [
+      {{
+        "name": "config_name",
+        "parameters": {{...}},
+        "rationale": "..."
+      }}
+    ]
   }},
-  "rationale": "...",
-  "num_trials": 10,
-  "expected_improvement": "..."
+  "random_search": {{
+    "search_space": {{
+      "param1": {{"type": "...", ...}},
+      "param2": {{"type": "...", ...}}
+    }},
+    "num_trials": 8-15,
+    "rationale": "Why these parameters and ranges"
+  }},
+  "task_suitability_warning": "Any warnings about task-algorithm mismatch",
+  "expected_improvement": "What we expect to achieve"
 }}
-"""
+
+**CRITICAL:**
+- Output PURE JSON only (no markdown, no code blocks, no extra text)
+- NO diff markers (<<<<<<< SEARCH, =======, >>>>>>> REPLACE)
+- Compute actual numerical ranges (don't use placeholders)
+- If Phase 1 identified parameter constraints, ENFORCE them
+
+Now design the tuning strategy:"""
     
-    print("🤖 AI 正在设计搜索空间...")
-    ai_response = coder.run(prompt)
+    print("🤖 正在让 LLM 设计调优策略...")
     
-    # 保存 AI 原始响应以便调试（如果提供了 folder_name）
-    if folder_name:
-        debug_file = osp.join(folder_name, f"debug_tuning_response_{scenario_info.get('name', 'unknown')}.txt")
-        try:
-            with open(debug_file, 'w', encoding='utf-8') as f:
-                f.write("=== AI 原始响应 ===\n")
-                f.write(ai_response)
-                f.write("\n\n=== 提示词 ===\n")
-                f.write(prompt)
-            print(f"   💾 调试信息已保存到: {debug_file}")
-        except Exception as e:
-            print(f"   ⚠️ 保存调试信息失败: {e}")
-    
-    # 解析 AI 响应
     try:
-        import re
+        ai_response = coder.run(prompt)
         
-        # 使用新的清理函数
+        # 保存原始响应
+        debug_file = osp.join(scenario_dir, "tuning_strategy_raw.txt")
+        with open(debug_file, 'w', encoding='utf-8') as f:
+            f.write("=== AI 原始响应 ===\n")
+            f.write(ai_response)
+            f.write("\n\n=== 提示词 ===\n")
+            f.write(prompt)
+        print(f"   📄 原始策略已保存: {debug_file}")
+        
+        # 清理并解析 JSON
         json_str = clean_json_from_response(ai_response)
         
-        # 如果没有提取到任何 JSON
         if not json_str:
             print("❌ 无法从 AI 响应中提取 JSON")
-            print(f"AI 响应前 500 字符: {ai_response[:500]}")
-            print(f"\n完整响应已保存到调试文件，请检查")
+            print(f"   响应前 500 字符: {ai_response[:500]}")
             return None
         
         print(f"   ✓ 成功提取 JSON ({len(json_str)} 字符)")
         
-        # 尝试解析 JSON
         strategy = json.loads(json_str)
         
-        # 验证必需字段（新格式）
-        if "search_space" in strategy:
-            num_trials = strategy.get('num_trials', 10)
-            print(f"✅ 成功解析搜索空间: {len(strategy['search_space'])} 个参数, {num_trials} 次试验")
-            return strategy
+        # 保存格式化的策略
+        strategy_file = osp.join(scenario_dir, "tuning_strategy.json")
+        with open(strategy_file, 'w', encoding='utf-8') as f:
+            json.dump(strategy, f, indent=2, ensure_ascii=False)
+        print(f"   ✅ 调优策略已保存: {strategy_file}")
+        
+        # 打印策略摘要
+        print(f"\n📊 调优策略摘要:")
+        
+        ablation = strategy.get('ablation_study', {})
+        if ablation.get('required', False):
+            num_configs = len(ablation.get('configs', []))
+            print(f"   消融实验: ✅ 需要 ({num_configs} 个配置)")
         else:
-            print("❌ 策略缺少必需字段 (search_space)")
-            return None
-            
+            print(f"   消融实验: ⏭️  跳过")
+        
+        random_search = strategy.get('random_search', {})
+        if 'search_space' in random_search:
+            num_params = len(random_search['search_space'])
+            num_trials = random_search.get('num_trials', 10)
+            print(f"   随机搜索: {num_params} 个参数, {num_trials} 次试验")
+            print(f"   调优参数: {', '.join(random_search['search_space'].keys())}")
+        
+        warning = strategy.get('task_suitability_warning')
+        if warning:
+            print(f"   ⚠️  任务适配性警告: {warning}")
+        
+        return strategy
+        
     except json.JSONDecodeError as e:
         print(f"❌ JSON 解析失败: {e}")
-        print(f"尝试解析的内容 (前 300 字符): {json_str[:300] if json_str else 'None'}")
+        print(f"   尝试解析: {json_str[:300] if json_str else 'None'}")
         return None
     except Exception as e:
-        print(f"❌ 解析调优策略失败: {e}")
+        print(f"❌ 策略设计失败: {e}")
+        import traceback
+        traceback.print_exc()
         return None
+
+
+def _format_algorithm_constraints(algorithm_analysis):
+    """格式化算法约束为提示词"""
+    if not algorithm_analysis:
+        return "No specific constraints"
+    
+    constraints = []
+    
+    for param in algorithm_analysis.get('key_parameters', []):
+        if param.get('priority') in ['critical', 'important']:
+            name = param['name']
+            constraint_info = param.get('constraints', {})
+            
+            constraint_text = f"- **{name}** ({param['priority']}): {param.get('reason', '')}"
+            
+            if constraint_info.get('constraint_description'):
+                constraint_text += f"\n  Constraint: {constraint_info['constraint_description']}"
+            
+            if constraint_info.get('recommended_values'):
+                constraint_text += f"\n  Recommended: {constraint_info['recommended_values']}"
+            
+            if param.get('ablation_required'):
+                constraint_text += "\n  ⚠️  MUST do ablation study on this parameter!"
+            
+            constraints.append(constraint_text)
+    
+    return '\n'.join(constraints) if constraints else "No specific constraints"
 
 
 def tune_scenario_immediately(folder_name, scenario_info, coder, algo_info=None):
     """
-    Scenario-level Immediate Tuning - Separate Script Mode
+    Scenario-level Immediate Tuning - 智能两阶段调优
     
     Strategy:
-    1. Refactor experiment.py to ensure `run_experiment(args)` is importable.
-    2. Generate a temporary `tune_experiment.py` script.
-    3. Run the tuning script to test configs and save summary.
+    阶段1: LLM 自主分析算法特性和调优需求
+    阶段2: 基于分析设计调优策略（消融实验 + 随机搜索）
+    阶段3: 执行调优实验
     """
     if not ENABLE_HYPERPARAMETER_TUNING:
         return None
     
     scenario_name = scenario_info["name"]
+    run_dir = scenario_info.get("run_dir", f"run_{scenario_name}")
+    scenario_dir = osp.join(folder_name, run_dir)
+    
     print(f"\n" + "="*80)
-    print(f"🎯 Scenario Tuning: {scenario_name} (Separate Script Mode)")
+    print(f"🎯 场景调优: {scenario_name} (智能两阶段模式)")
     print("="*80)
     
+    # 创建调优子目录
+    tuning_dir = osp.join(scenario_dir, "tuning")
+    os.makedirs(tuning_dir, exist_ok=True)
+    print(f"   📁 调优目录: {tuning_dir}")
+    
     # 1. Extract tunable parameters
+    print(f"\n{'='*80}")
+    print("Step 1: 提取可调参数")
+    print(f"{'='*80}")
     tunable_params = extract_tunable_parameters_from_code(folder_name)
     if not tunable_params:
-        print("⚠️ No tunable parameters found, skipping.")
+        print("⚠️ 未找到可调参数，跳过调优")
         return None
         
-    # 2. Get baseline results (try new nested structure first)
-    run_dir = scenario_info.get("run_dir", f"run_{scenario_name}")
-    result_file = osp.join(folder_name, run_dir, "baseline", "final_info.json")
-    if not osp.exists(result_file):
-        result_file = osp.join(folder_name, run_dir, "final_info.json")
-    
+    # 2. Get baseline results
+    result_file = osp.join(scenario_dir, "final_info.json")
     baseline_results = {}
     if osp.exists(result_file):
         with open(result_file, 'r') as f:
             baseline_results = json.load(f)
+        print(f"   ✓ 已加载基线结果")
+    else:
+        print(f"   ⚠️  未找到基线结果文件: {result_file}")
     
-    # 3. Design Tuning Strategy (now returns search_space instead of fixed configs)
-    print(f"🤖 AI designing tuning strategy...")
-    strategy = design_tuning_strategy_for_scenario(
-        scenario_info, baseline_results, tunable_params, coder, folder_name
+    # 准备算法信息（只从 algorithm.tex 提取，避免重复）
+    if algo_info is None:
+        algo_info = {}
+        # 只从 algorithm.tex 提取（idea.json 的内容已经体现在 experiment.py 中了）
+        algo_tex_path = osp.join(folder_name, "algorithm.tex")
+        if osp.exists(algo_tex_path):
+            with open(algo_tex_path, 'r', encoding='utf-8') as f:
+                algo_info['description'] = f.read()
+            print(f"   ✓ 已读取 algorithm.tex")
+        else:
+            print(f"   ⚠️ 未找到 algorithm.tex，LLM 将主要依赖 experiment.py 代码分析")
+            algo_info['description'] = "No algorithm description available. Please analyze from experiment.py code."
+    
+    # ========================================================================
+    # 阶段1: LLM 分析算法特性
+    # ========================================================================
+    algorithm_analysis = analyze_algorithm_characteristics(
+        scenario_info=scenario_info,
+        tunable_params=tunable_params,
+        algo_info=algo_info,
+        coder=coder,
+        scenario_dir=tuning_dir,
+        folder_name=folder_name
     )
     
-    if not strategy or not strategy.get("search_space"):
-        print("❌ Invalid strategy or no search_space defined.")
+    if not algorithm_analysis:
+        print("⚠️ 算法分析失败，使用基础调优策略")
+        algorithm_analysis = None
+    
+    # ========================================================================
+    # 阶段2: 基于分析设计调优策略
+    # ========================================================================
+    strategy = design_tuning_strategy_for_scenario(
+        scenario_info=scenario_info,
+        current_results=baseline_results,
+        tunable_params=tunable_params,
+        algorithm_analysis=algorithm_analysis,
+        coder=coder,
+        scenario_dir=tuning_dir
+    )
+    
+    if not strategy:
+        print("❌ 策略设计失败")
+        return None
+    
+    # 检查是否有随机搜索配置
+    random_search_config = strategy.get("random_search", {})
+    if not random_search_config.get("search_space"):
+        print("❌ 未定义随机搜索空间")
         return None
     
     # ========================================================================
-    # Step A: Ensure experiment.py is importable
+    # 阶段3: Ensure experiment.py is importable
     # ========================================================================
-    print("🔧 Refactoring experiment.py for importability...")
+    print(f"\n{'='*80}")
+    print("Step 2: 重构 experiment.py 为可导入模式")
+    print(f"{'='*80}")
     ensure_importability_prompt = """
 We need to run hyperparameter tuning by importing functions from experiment.py into a separate script.
 
@@ -2442,12 +2776,14 @@ Refactor `experiment.py` to ensure the main training logic is encapsulated in a 
     coder.run(ensure_importability_prompt)
     
     # ========================================================================
-    # Step B: Generate independent tuning script with RANDOM SEARCH
+    # 阶段4: Generate independent tuning script with RANDOM SEARCH
     # ========================================================================
-    print("📜 Generating tune_experiment.py with Random Search...")
+    print(f"\n{'='*80}")
+    print("Step 3: 生成调优脚本 (tune_experiment.py)")
+    print(f"{'='*80}")
     
-    search_space_json = json.dumps(strategy['search_space'], indent=2)
-    num_trials = strategy.get('num_trials', 10)
+    search_space_json = json.dumps(random_search_config['search_space'], indent=2)
+    num_trials = random_search_config.get('num_trials', 10)
     base_params_json = json.dumps(scenario_info.get('parameters', {}))
     
     tuning_script_prompt = f"""
@@ -2532,9 +2868,11 @@ Generate the complete `tune_experiment.py` file code implementing Random Search 
     coder.run(tuning_script_prompt)
     
     # ========================================================================
-    # Step C: Execute Tuning Script
+    # 阶段5: Execute Tuning Script
     # ========================================================================
-    print("⚙️ Executing tune_experiment.py...")
+    print(f"\n{'='*80}")
+    print("Step 4: 执行调优脚本")
+    print(f"{'='*80}")
     cwd = osp.abspath(folder_name)
     
     try:
@@ -2549,43 +2887,95 @@ Generate the complete `tune_experiment.py` file code implementing Random Search 
         )
         
         if result.returncode != 0:
-            print(f"❌ Tuning script failed:\n{result.stderr[:500]}")
-            return None
+            print(f"❌ 调优脚本失败:\n{result.stderr[:500]}")
             
-        print("✅ Tuning completed.")
-        
-        # Step D: Load Best Results
-        # Look for the summary file in the scenario directory (or root depending on implementation)
-        # Note: The prompt asks to save to `tuning/tuning_summary.json` relative to execution
-        summary_file = osp.join(cwd, "tuning", "tuning_summary.json")
-        
-        if osp.exists(summary_file):
-            with open(summary_file, 'r') as f:
-                summary = json.load(f)
-            
-            best_config = summary.get("best_config")
-            print(f"🏆 Best Config: {best_config}")
-            
-            # Save report to scenario directory
-            scenario_dir = osp.join(folder_name, run_dir)
-            report_file = osp.join(scenario_dir, "tuning_report.json")
-            with open(report_file, 'w', encoding='utf-8') as f:
-                json.dump(summary, f, indent=2)
-            
-            # 📄 Save tune_experiment.py to scenario directory (code snapshot)
+            # 即使失败也保存相关文件到场景目录
             tune_script_src = osp.join(cwd, "tune_experiment.py")
             if osp.exists(tune_script_src):
                 tune_script_dst = osp.join(scenario_dir, "tune_experiment.py")
                 shutil.copy(tune_script_src, tune_script_dst)
-                print(f"   📄 已保存 tune_experiment.py 快照到场景目录")
                 
+                # 保存错误日志
+                error_log = osp.join(tuning_dir, "tuning_error.log")
+                with open(error_log, 'w', encoding='utf-8') as f:
+                    f.write(f"=== STDERR ===\n{result.stderr}\n\n=== STDOUT ===\n{result.stdout}")
+                print(f"   📄 错误日志已保存: {error_log}")
+            
+            return None
+            
+        print("✅ 调优完成")
+        
+        # 加载调优结果（tune_experiment.py 会将结果保存到 tuning/tuning_summary.json）
+        summary_file = osp.join(cwd, "tuning", "tuning_summary.json")
+        
+        if osp.exists(summary_file):
+            with open(summary_file, 'r', encoding='utf-8') as f:
+                summary = json.load(f)
+            
+            best_config = summary.get("best_config")
+            print(f"\n🏆 最佳配置:")
+            print(json.dumps(best_config, indent=2, ensure_ascii=False))
+            
+            # ========================================================
+            # 保存所有相关文件到场景目录（重要！）
+            # ========================================================
+            
+            # 1. 保存调优报告到场景根目录
+            report_file = osp.join(scenario_dir, "tuning_report.json")
+            with open(report_file, 'w', encoding='utf-8') as f:
+                json.dump(summary, f, indent=2, ensure_ascii=False)
+            print(f"   📄 调优报告: {report_file}")
+            
+            # 2. 复制 tune_experiment.py 到场景目录
+            tune_script_src = osp.join(cwd, "tune_experiment.py")
+            if osp.exists(tune_script_src):
+                tune_script_dst = osp.join(scenario_dir, "tune_experiment.py")
+                shutil.copy(tune_script_src, tune_script_dst)
+                print(f"   📄 tune_experiment.py 快照已保存")
+            
+            # 3. 复制 experiment.py 到 tuning 子目录（调优时的版本）
+            exp_file = osp.join(cwd, "experiment.py")
+            if osp.exists(exp_file):
+                exp_dst = osp.join(tuning_dir, "experiment.py")
+                shutil.copy(exp_file, exp_dst)
+                print(f"   📄 experiment.py 快照已保存到 tuning/")
+            
+            # 4. 保存算法分析（如果有）
+            if algorithm_analysis:
+                analysis_file = osp.join(scenario_dir, "algorithm_analysis.json")
+                with open(analysis_file, 'w', encoding='utf-8') as f:
+                    json.dump(algorithm_analysis, f, indent=2, ensure_ascii=False)
+                print(f"   📄 算法分析: {analysis_file}")
+            
+            # 5. 保存调优策略
+            strategy_file = osp.join(scenario_dir, "tuning_strategy.json")
+            with open(strategy_file, 'w', encoding='utf-8') as f:
+                json.dump(strategy, f, indent=2, ensure_ascii=False)
+            print(f"   📄 调优策略: {strategy_file}")
+            
+            # 6. 移动主调优目录到场景目录（如果还没有移动）
+            global_tuning_dir = osp.join(cwd, "tuning")
+            if osp.exists(global_tuning_dir) and global_tuning_dir != tuning_dir:
+                try:
+                    # 复制而不是移动，避免破坏原有结构
+                    import distutils.dir_util
+                    distutils.dir_util.copy_tree(global_tuning_dir, tuning_dir)
+                    print(f"   📁 调优数据已复制到场景目录")
+                except Exception as e:
+                    print(f"   ⚠️ 复制调优数据失败: {e}")
+            
             return summary
+        else:
+            print(f"⚠️ 未找到调优摘要文件: {summary_file}")
+            return None
             
     except TimeoutExpired:
-        print("⏰ Tuning timed out.")
+        print("⏰ 调优超时")
         return None
     except Exception as e:
-        print(f"💥 Tuning exception: {e}")
+        print(f"💥 调优异常: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 

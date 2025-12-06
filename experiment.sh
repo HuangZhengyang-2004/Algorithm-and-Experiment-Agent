@@ -5,8 +5,9 @@ set -euo pipefail
 
 
 # 预设参数
-BASE="https://aihubmix.com/v1"
-KEY="sk-6bfiCoPaTfzJIx1n174365D4E0304bDdBf1fBeC83197D1Cc"  # 请确保安全存储 API 密钥
+# BASE="https://aihubmix.com/v1"
+BASE="https://xh.v1api.cc/v1"
+KEY="sk-Z4L5IKRfLXwDMllWX2rWMsuZ0Is0ceIxJz2HMIp7RPdUpSbN"  # 请确保安全存储 API 密钥
 MODEL="gpt-5"  # 使用标准的 OpenAI 模型名称
 # BASE="https://api.deepseek.com/v1"
 # KEY="sk-2a5e2ec89e23451a87bf333f04c582cc"  # 请确保安全存储 API 密钥
