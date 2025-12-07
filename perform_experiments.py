@@ -1988,6 +1988,25 @@ Please make TARGETED changes to experiment.py now.
                 if tuning_report:
                     scenario_result["tuning_report"] = tuning_report
                     print(f"\n✅ 场景 '{scenario_name}' 调优成功完成")
+                    
+                    # ============================================================
+                    # 调优完成后立即生成该场景的可视化图表
+                    # ============================================================
+                    print(f"\n{'='*80}")
+                    print(f"📊 为场景 '{scenario_name}' 生成可视化图表")
+                    print(f"{'='*80}\n")
+                    
+                    try:
+                        generate_scenario_plots(
+                            folder_name=folder_name,
+                            scenario_info=scenario_result,
+                            coder=coder
+                        )
+                        print(f"✅ 场景 '{scenario_name}' 图表生成完成")
+                    except Exception as plot_error:
+                        print(f"⚠️ 图表生成失败: {plot_error}")
+                        import traceback
+                        traceback.print_exc()
                 else:
                     print(f"\n⚠️  场景 '{scenario_name}' 未执行调优")
                     
@@ -2090,6 +2109,321 @@ def execute_single_scenario(folder_name, scenario_name, args_list):
     except Exception as e:
         print(f"   💥 场景 '{scenario_name}' 异常: {str(e)}")
         return False, str(e)
+
+
+# ============================================================================
+# 场景级可视化功能模块
+# ============================================================================
+
+def generate_scenario_plots(folder_name, scenario_info, coder):
+    """
+    为单个场景生成详细的可视化图表
+    
+    包括：
+    1. 基线实验结果对比（FedAvg vs SFedAvg）
+    2. 调优实验的消融分析（如果有）
+    3. 参数影响分析（压缩比、学习率等）
+    4. 收敛曲线对比
+    """
+    scenario_name = scenario_info["name"]
+    run_dir = scenario_info.get("run_dir", f"run_{scenario_name}")
+    scenario_dir = osp.join(folder_name, run_dir)
+    plots_dir = osp.join(scenario_dir, "plots")
+    
+    # 创建图表目录
+    os.makedirs(plots_dir, exist_ok=True)
+    print(f"   📁 图表目录: {plots_dir}")
+    
+    # 读取调优报告
+    tuning_report = scenario_info.get("tuning_report")
+    if not tuning_report:
+        print("   ⚠️ 未找到调优报告，跳过可视化")
+        return
+    
+    # 让 LLM 自主决定生成什么图表
+    plot_prompt = f"""
+You are an expert data scientist. Analyze the experimental results and create insightful visualizations.
+
+# Scenario Information
+Name: {scenario_name}
+Description: {scenario_info.get('description', '')}
+Parameters: {json.dumps(scenario_info.get('parameters', {}), indent=2)}
+
+# Available Data
+
+## Baseline Results
+File: `baseline/final_info.json`
+- Contains FedAvg and SFedAvg baseline performance
+- Has training/test metrics over rounds
+
+## Tuning Results  
+File: `tuning_report.json`
+- Contains {len(tuning_report.get('all_results', []))} tuning trials
+- Best configuration and all trial results
+
+Individual trial data: `tuning/trial_*/final_info.json`
+
+# Your Task
+
+**Analyze the data and decide what visualizations would be most insightful for THIS specific scenario.**
+
+## Suggested Analysis Directions (choose what's relevant):
+
+### 1. Baseline Comparison
+Always useful: Compare FedAvg vs SFedAvg baseline performance
+- Training loss curves
+- Test accuracy curves
+- Identify which method performs better
+
+### 2. Compression Ratio Analysis ⭐ IMPORTANT
+**If `subspace_dim` was tuned**, this is critical:
+- X-axis: Compression ratio δ = subspace_dim / total_parameters
+- Y-axis: Performance metrics (test_acc, train_loss)
+- Show FedAvg baseline (horizontal line, no compression)
+- Show SFedAvg performance at different compression ratios
+- Highlight optimal compression ratio
+- **This reveals whether compression helps or hurts!**
+
+### 3. Parameter Ablation
+For each tuned parameter, show its impact:
+- Scatter plot: parameter value vs performance
+- Identify optimal values
+- Show trends (linear, logarithmic, etc.)
+
+### 4. Parameter Interaction (if 2+ parameters)
+- 2D heatmap showing how parameters interact
+- X-axis: parameter 1, Y-axis: parameter 2, Color: performance
+- Reveals whether parameters are independent or coupled
+
+### 5. Convergence Analysis
+- Compare convergence speed of different configurations
+- Baseline vs best tuned
+- Show improvement from tuning
+
+### 6. Custom Analysis
+Based on scenario description, identify unique aspects:
+- For "Non-IID": analyze heterogeneity impact
+- For "Label Noise": show robustness metrics
+- For "Scalability": show scaling behavior
+
+## Decision Criteria
+
+**You should decide:**
+1. Which plots are most relevant to THIS scenario
+2. How many plots to create (2-6 recommended)
+3. What insights each plot reveals
+4. How to best layout the information
+
+**Prioritize:**
+- ✅ Plots that answer the scenario's research question
+- ✅ Compression ratio analysis (if applicable)
+- ✅ Parameter impact (ablation)
+- ❌ Don't create plots that don't add insight
+- ❌ Don't force all 5 plots if data doesn't support it
+
+# Output Requirements
+
+Create a Python script named `scenario_plots.py` that:
+
+1. **Analyzes the data first**
+   ```python
+   # Load and inspect data
+   baseline_data = load_baseline()
+   tuning_data = load_tuning_results()
+   
+   # Identify what was tuned
+   tuned_params = extract_tuned_parameters(tuning_data)
+   
+   # Check if compression ratio is relevant
+   has_compression = 'subspace_dim' in tuned_params
+   
+   # Decide what to plot
+   plots_to_create = decide_plots(tuned_params, has_compression, scenario_description)
+   ```
+
+2. **Generate only relevant plots**
+   - Each plot should have a clear purpose
+   - Name plots descriptively (e.g., `compression_ratio_impact.png`, `learning_rate_ablation.png`)
+   - Include informative titles and annotations
+
+3. **Key Requirements:**
+   - **Always** compare baseline FedAvg vs SFedAvg
+   - **If compression ratio varies**, create dedicated analysis plot ⭐
+   - **For each significant parameter**, show ablation analysis
+   - **Avoid redundant plots** - if learning_rate doesn't vary much, skip it
+   - **Add insights** - annotate optimal points, trends, thresholds
+
+4. **Code Structure:**
+   ```python
+   import json, os
+   import numpy as np
+   import matplotlib.pyplot as plt
+   
+   def load_data():
+       # Load all data files
+       pass
+   
+   def create_baseline_comparison():
+       # Always create this
+       pass
+   
+   def create_compression_analysis():
+       # Only if subspace_dim varies
+       pass
+   
+   def create_parameter_ablation(param_name):
+       # For each varying parameter
+       pass
+   
+   if __name__ == '__main__':
+       data = load_data()
+       
+       # Decide what to plot
+       if has_compression_variation(data):
+           create_compression_analysis()  # Priority!
+       
+       if has_parameter_variation(data, 'learning_rate'):
+           create_parameter_ablation('learning_rate')
+       
+       # etc.
+   ```
+
+5. **Plot Quality:**
+   - Figure size: (10, 6) or (12, 5) for dual plots
+   - DPI: 300
+   - Font sizes: 12 (labels), 14 (titles)
+   - Save to `plots/` directory
+   - Include error bars if multiple runs available
+
+# Critical Guidelines
+
+✅ **DO:**
+- Analyze data before deciding what to plot
+- Create compression ratio analysis if applicable (most important!)
+- Show parameter ablation for varying parameters
+- Add meaningful annotations and insights
+- Make titles self-explanatory
+
+❌ **DON'T:**
+- Create all 5 plots if data doesn't support them
+- Plot parameters that barely vary
+- Generate generic plots without context
+- Force a heatmap if only 1 parameter varies
+- Create plots that don't answer research questions
+
+# Example Decision Logic
+
+```python
+# Scenario: "Non-IID Clients" with tuned subspace_dim and learning_rate
+
+Relevant plots:
+1. baseline_comparison.png (always)
+2. compression_ratio_impact.png (subspace_dim varies from 7 to 46)
+3. learning_rate_sensitivity.png (learning_rate varies from 0.006 to 0.09)
+4. parameter_interaction_heatmap.png (2D: subspace_dim × learning_rate)
+
+Skip:
+- convergence_comparison.png (if baseline already shows this)
+- generic_ablation.png (covered by specific parameter plots)
+```
+
+Now, analyze the data and create the appropriate visualization script `scenario_plots.py`.
+
+**Remember:** Quality over quantity. 2-4 insightful plots are better than 5 generic ones!
+"""
+    
+    print("   🤖 让 LLM 自主决定并生成可视化脚本...")
+    
+    try:
+        # 创建空的 scenario_plots.py 文件让 coder 知道要编辑它
+        plot_script = osp.join(scenario_dir, "scenario_plots.py")
+        
+        # 如果文件不存在，创建一个带有基本框架的空文件
+        if not osp.exists(plot_script):
+            with open(plot_script, 'w', encoding='utf-8') as f:
+                f.write("""#!/usr/bin/env python3
+# Scenario-specific visualization script
+# This file will be populated by the AI agent
+
+import json
+import os
+import numpy as np
+import matplotlib.pyplot as plt
+
+# TODO: Implement visualization logic
+
+if __name__ == "__main__":
+    print("This script needs to be implemented")
+""")
+            print(f"   📄 已创建空脚本: {plot_script}")
+        
+        # 让 coder 知道要编辑这个文件（使用相对于主目录的路径）
+        relative_script = osp.relpath(plot_script, folder_name)
+        
+        # 临时将文件添加到 coder 的跟踪列表
+        try:
+            coder.add_rel_fname(relative_script)
+            print(f"   ✓ 已将 {relative_script} 添加到 coder 跟踪")
+        except Exception as add_err:
+            print(f"   ⚠️ 添加文件到 coder 失败: {add_err}")
+        
+        # 修改 prompt，明确要求编辑指定文件
+        enhanced_plot_prompt = f"""Please edit the file `{relative_script}` to implement the visualization logic.
+
+{plot_prompt}
+
+**CRITICAL: You MUST edit the file `{relative_script}` with the complete implementation.**
+**Use SEARCH/REPLACE blocks to replace the TODO section with the full implementation.**
+"""
+        
+        coder_out = coder.run(enhanced_plot_prompt)
+        print(coder_out)
+        
+        # 检查是否生成了脚本
+        if osp.exists(plot_script):
+            # 检查文件大小（如果太小说明没有实现）
+            file_size = os.path.getsize(plot_script)
+            if file_size > 500:  # 至少500字节
+                print(f"   ✅ 可视化脚本已生成: {plot_script} ({file_size} bytes)")
+                
+                # 执行可视化脚本
+                print(f"   🎨 执行可视化脚本...")
+                result = subprocess.run(
+                    ["python", "scenario_plots.py"],
+                    cwd=scenario_dir,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    timeout=300  # 5分钟超时
+                )
+                
+                if result.returncode == 0:
+                    print(f"   ✅ 可视化完成")
+                    print(result.stdout)
+                    
+                    # 列出生成的图表
+                    if osp.exists(plots_dir):
+                        plot_files = [f for f in os.listdir(plots_dir) if f.endswith('.png')]
+                        if plot_files:
+                            print(f"\n   📊 生成的图表 ({len(plot_files)} 个):")
+                            for pf in sorted(plot_files):
+                                print(f"      - {pf}")
+                        else:
+                            print(f"   ⚠️ plots/ 目录为空")
+                else:
+                    print(f"   ❌ 可视化脚本执行失败:")
+                    print(result.stderr[:500])
+            else:
+                print(f"   ⚠️ 脚本文件太小 ({file_size} bytes)，可能未正确实现")
+        else:
+            print(f"   ⚠️ 未生成可视化脚本")
+            
+    except TimeoutExpired:
+        print(f"   ⏰ 可视化超时")
+    except Exception as e:
+        print(f"   ❌ 可视化异常: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 # ============================================================================
@@ -2545,7 +2879,7 @@ Design a search space for 2-4 most impactful parameters:
     ]
   }},
   "random_search": {{
-    "search_space": {{
+  "search_space": {{
       "param1": {{"type": "...", ...}},
       "param2": {{"type": "...", ...}}
     }},
@@ -2618,7 +2952,7 @@ Now design the tuning strategy:"""
             print(f"   ⚠️  任务适配性警告: {warning}")
         
         return strategy
-        
+            
     except json.JSONDecodeError as e:
         print(f"❌ JSON 解析失败: {e}")
         print(f"   尝试解析: {json_str[:300] if json_str else 'None'}")
@@ -2963,7 +3297,7 @@ Generate the complete `tune_experiment.py` file code implementing Random Search 
                     print(f"   📁 调优数据已复制到场景目录")
                 except Exception as e:
                     print(f"   ⚠️ 复制调优数据失败: {e}")
-            
+                
             return summary
         else:
             print(f"⚠️ 未找到调优摘要文件: {summary_file}")
